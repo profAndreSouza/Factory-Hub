@@ -62,8 +62,11 @@ services:
     image: ${DOCKERHUB_USERNAME:?DOCKERHUB_USERNAME is required}/factoryhub-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
-      SPRING_PROFILES_ACTIVE: mock,influx
+      SPRING_PROFILES_ACTIVE: postgres,influx
       SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${RDS_HOST:?RDS_HOST is required}:5432/${RDS_DATABASE:?RDS_DATABASE is required}
+      SPRING_DATASOURCE_USERNAME: ${RDS_USERNAME:?RDS_USERNAME is required}
+      SPRING_DATASOURCE_PASSWORD: ${RDS_PASSWORD:?RDS_PASSWORD is required}
       ML_SERVICE_BASE_URL: http://ml-service:5000
       INFLUXDB_URL: http://influxdb:8086
       INFLUXDB_ORG: ${INFLUXDB_ORG:-factoryhub}

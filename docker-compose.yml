@@ -1,4 +1,20 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: factoryhub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${RDS_DATABASE:-factoryhub}
+      POSTGRES_USER: ${RDS_USERNAME:-factoryhub}
+      POSTGRES_PASSWORD: ${RDS_PASSWORD:-factoryhub-local-password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   influxdb:
     image: influxdb:2.7
     container_name: factoryhub-influxdb
@@ -80,8 +96,11 @@ services:
     container_name: factoryhub-backend
     restart: unless-stopped
     environment:
-      SPRING_PROFILES_ACTIVE: mock,influx
+      SPRING_PROFILES_ACTIVE: postgres,influx
       SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${RDS_HOST:-postgres}:5432/${RDS_DATABASE:-factoryhub}
+      SPRING_DATASOURCE_USERNAME: ${RDS_USERNAME:-factoryhub}
+      SPRING_DATASOURCE_PASSWORD: ${RDS_PASSWORD:-factoryhub-local-password}
       ML_SERVICE_BASE_URL: http://ml-service:5000
       INFLUXDB_URL: http://influxdb:8086
       INFLUXDB_ORG: ${INFLUXDB_ORG:-factoryhub}
@@ -90,6 +109,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
+      postgres:
+        condition: service_healthy
       influx-seed:
         condition: service_completed_successfully
       ml-service:
@@ -110,6 +131,7 @@ services:
         condition: service_healthy
 
 volumes:
+  postgres-data:
   influx-data:
   influx-config:
   ml-models:

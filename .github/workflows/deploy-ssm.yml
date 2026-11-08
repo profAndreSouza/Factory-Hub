@@ -72,8 +72,33 @@ jobs:
       - name: Send deploy command through Systems Manager
         env:
           IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && 'latest' || format('sha-{0}', github.sha) }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
         run: |
-          deployment_command="cd /opt/factoryhub && git fetch origin main && git reset --hard origin/main && IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.cloud.yml pull && IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.cloud.yml up -d --remove-orphans"
+          deployment_command=$(cat <<'REMOTE_SCRIPT'
+          set -euo pipefail
+          cd /opt/factoryhub
+          if ! command -v aws >/dev/null 2>&1; then dnf install -y awscli-2; fi
+          git fetch origin main
+          git reset --hard origin/main
+          rds_prefix=/factoryhub/academy/rds
+          rds_host=$(aws ssm get-parameter --name "$rds_prefix/host" --query 'Parameter.Value' --output text --region __AWS_REGION__)
+          rds_database=$(aws ssm get-parameter --name "$rds_prefix/database" --query 'Parameter.Value' --output text --region __AWS_REGION__)
+          rds_username=$(aws ssm get-parameter --name "$rds_prefix/username" --query 'Parameter.Value' --output text --region __AWS_REGION__)
+          rds_password=$(aws ssm get-parameter --name "$rds_prefix/password" --with-decryption --query 'Parameter.Value' --output text --region __AWS_REGION__)
+          env_file=/opt/factoryhub/.env
+          temp_env=$(mktemp)
+          grep -Ev '^(RDS_HOST|RDS_DATABASE|RDS_USERNAME|RDS_PASSWORD)=' "$env_file" > "$temp_env" || true
+          printf 'RDS_HOST=%s\nRDS_DATABASE=%s\nRDS_USERNAME=%s\nRDS_PASSWORD=%s\n' \
+            "$rds_host" "$rds_database" "$rds_username" "$rds_password" >> "$temp_env"
+          chown ec2-user:ec2-user "$temp_env"
+          chmod 600 "$temp_env"
+          mv "$temp_env" "$env_file"
+          IMAGE_TAG=__IMAGE_TAG__ docker compose -f docker-compose.cloud.yml pull
+          IMAGE_TAG=__IMAGE_TAG__ docker compose -f docker-compose.cloud.yml up -d --remove-orphans
+          REMOTE_SCRIPT
+          )
+          deployment_command=${deployment_command//__AWS_REGION__/$AWS_REGION}
+          deployment_command=${deployment_command//__IMAGE_TAG__/$IMAGE_TAG}
           parameters=$(jq -cn --arg command "$deployment_command" '{commands:[$command]}')
           command_id=$(aws ssm send-command \
             --targets 'Key=tag:Project,Values=factoryhub' \

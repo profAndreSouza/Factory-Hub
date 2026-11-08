@@ -1,34 +1,34 @@
 # Backend Java — Factory Hub
 
-API de negócio em Spring Boot 3.5 / Java 17. No Docker Compose, leituras e telemetria recente vêm do InfluxDB local; dados de cadastro de máquinas, OEE e alertas continuam em memória. As predições são encaminhadas ao serviço Flask interno, que treina com o histórico sintético semeado no InfluxDB.
+API de negócio Spring Boot 3.5 / Java 17. No Compose, o perfil `postgres` usa PostgreSQL e Flyway; o perfil `influx` lê telemetria bruta do InfluxDB; as predições e o retreinamento são encaminhados ao Flask privado.
 
-## Executar
+## Banco relacional
+
+O Flyway cria `machines`, `oee_snapshots` e `alerts` na primeira inicialização. O catálogo de máquinas e snapshots iniciais de OEE são registros didáticos para manter o painel demonstrável. Predições `ATENCAO` e `RISCO_ANOMALIA` são gravadas como alertas; predições operacionais não geram alertas.
+
+No Compose local, o serviço PostgreSQL usa volume persistente. No ambiente cloud, o Compose conecta ao RDS privado. A senha do RDS é armazenada como SecureString no Systems Manager Parameter Store e o workflow SSM a busca pela role da EC2 antes de iniciar o Compose. Portanto, a role EC2 precisa de leitura dos parâmetros do Factory Hub e de descriptografia da chave padrão do Parameter Store.
+
+O cálculo consolidado de OEE a partir do histórico real do InfluxDB ainda é uma próxima etapa. Os valores iniciais da tabela estão marcados `DEMO` no banco.
+
+## Executar localmente
 
 ```bash
 docker compose up --build
 ```
 
-O frontend fica em `http://localhost`; a API pode ser acessada localmente em `http://localhost:8080`. Para desenvolvimento sem Docker, com Java 17 e Maven instalados:
-
-```bash
-mvn spring-boot:run
-```
-
-O perfil `mock` é o padrão para OEE e alertas; o Compose ativa também o perfil `influx` para telemetria. O endpoint `/actuator/health` informa se o processo Spring está pronto.
+O frontend fica em `http://localhost`; a API pode ser acessada em `http://localhost:8080`. Para executar a API sem Docker, use o perfil `mock` (sem banco) ou configure uma instância PostgreSQL e `SPRING_PROFILES_ACTIVE=postgres,influx`.
 
 ## Endpoints usados pelo frontend
 
-| Rota | Responsabilidade | Fonte atual | Integração prevista |
-|---|---|---|---|
-| `GET /api/v1/maquinas` | Cadastro e última leitura de cada máquina | Cadastro em memória + última leitura do InfluxDB | RDS PostgreSQL para o cadastro |
-| `GET /api/v1/indicadores/{deviceId}/oee?periodo=hoje` | Indicadores OEE e contadores do período | `MockFactoryDataAdapter` | RDS PostgreSQL |
-| `GET /api/v1/alertas` | Alertas de condição/anomalia | `MockFactoryDataAdapter` | Alertas consolidados no RDS |
-| `GET /api/v1/telemetria/{deviceId}/recente` | Série recente de sensores | InfluxDB no Docker | InfluxDB |
-| `POST /api/v1/predicoes` | Predição de condição de máquina | Flask privado treinado com amostras sintéticas | API Flask privada (`POST /predict`) |
-| `POST /api/v1/treinamentos` | Solicita retreinamento do modelo | Flask privado, com dados históricos do InfluxDB | API Flask privada (`POST /train`) |
-| `GET /api/v1/treinamentos/status` | Etapa, mensagens e métricas do treino | Flask privado | API Flask privada (`GET /training/status`) |
-| `GET /api/v1/health` | Estado do backend e dependências | Java + Flask reais; RDS/MQTT marcados como `MOCK` | Verificações ativas em cada serviço; InfluxDB consultado no perfil `influx` |
+| Rota | Responsabilidade | Fonte atual |
+|---|---|---|
+| `GET /api/v1/maquinas` | Cadastro e última leitura | Catálogo no PostgreSQL + última leitura no InfluxDB |
+| `GET /api/v1/indicadores/{deviceId}/oee?periodo=hoje` | Indicadores OEE e contadores do período | PostgreSQL; snapshots iniciais marcados como demo |
+| `GET /api/v1/alertas` | Alertas de condição/anomalia | PostgreSQL; inclui predições de risco persistidas |
+| `GET /api/v1/telemetria/{deviceId}/recente` | Série recente de sensores | InfluxDB |
+| `POST /api/v1/predicoes` | Predição de condição de máquina | Serviço Flask; alertas não operacionais são persistidos no PostgreSQL |
+| `POST /api/v1/treinamentos` | Solicita retreinamento do modelo | Flask com histórico do InfluxDB |
+| `GET /api/v1/treinamentos/status` | Etapa, mensagens e métricas do treino | Flask |
+| `GET /api/v1/health` | Estado das dependências | Java, Flask, InfluxDB e PostgreSQL; MQTT ainda aparece como `MOCK` |
 
-Os adapters ficam atrás das interfaces em `application/port`. Ao conectar RDS e outros serviços, implemente adapters para essas interfaces e selecione o perfil correspondente. Não é necessário alterar os contratos REST consumidos pelo React.
-
-O frontend chama apenas `/api/...`: o Vite encaminha essas rotas para `localhost:8080` no desenvolvimento e o Nginx encaminha para `backend-java:8080` no Compose. O endereço do Flask não é entregue ao navegador. No Compose, Flask não publica porta no host; somente o backend acessa a rede interna na porta 5000.
+O React chama apenas `/api/...`. O Nginx encaminha as chamadas para o Java; o navegador não acessa diretamente Flask, InfluxDB ou RDS.

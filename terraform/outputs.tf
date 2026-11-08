@@ -18,6 +18,11 @@ output "rds_endpoint" {
   description = "Endpoint privado do PostgreSQL (porta 5432)."
 }
 
+output "rds_parameter_prefix" {
+  value       = local.rds_parameter_prefix
+  description = "SSM Parameter Store path prefix for the RDS application connection settings."
+}
+
 output "rds_admin_password" {
   value       = random_password.rds.result
   sensitive   = true

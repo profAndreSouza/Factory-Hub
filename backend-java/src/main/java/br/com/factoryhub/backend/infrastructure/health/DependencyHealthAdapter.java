@@ -9,6 +9,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,11 +20,14 @@ import java.util.List;
 public class DependencyHealthAdapter implements DependencyHealthPort {
     private final RestClient flaskClient;
     private final ObjectProvider<InfluxDBClient> influxClient;
+    private final ObjectProvider<DataSource> dataSource;
 
     public DependencyHealthAdapter(@Value("${factoryhub.ml.base-url}") String baseUrl,
-                                   ObjectProvider<InfluxDBClient> influxClient) {
+                                   ObjectProvider<InfluxDBClient> influxClient,
+                                   ObjectProvider<DataSource> dataSource) {
         this.flaskClient = RestClient.builder().baseUrl(baseUrl).build();
         this.influxClient = influxClient;
+        this.dataSource = dataSource;
     }
 
     @Override
@@ -30,8 +36,22 @@ public class DependencyHealthAdapter implements DependencyHealthPort {
         services.add(flaskHealth());
         services.add(new ServiceHealthResponse("MQTT Broker", "UP", null, "MOCK"));
         services.add(influxHealth());
-        services.add(new ServiceHealthResponse("RDS PostgreSQL", "UP", null, "MOCK"));
+        services.add(rdsHealth());
         return services;
+    }
+
+    private ServiceHealthResponse rdsHealth() {
+        DataSource client = dataSource.getIfAvailable();
+        if (client == null) return new ServiceHealthResponse("RDS PostgreSQL", "UP", null, "MOCK");
+        long startedAt = System.nanoTime();
+        try (Connection connection = client.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("SELECT 1");
+            long latencyMs = (System.nanoTime() - startedAt) / 1_000_000;
+            return new ServiceHealthResponse("RDS PostgreSQL", "UP",
+                    Math.toIntExact(Math.min(latencyMs, Integer.MAX_VALUE)), "LIVE");
+        } catch (Exception exception) {
+            return new ServiceHealthResponse("RDS PostgreSQL", "DOWN", null, "LIVE");
+        }
     }
 
     private ServiceHealthResponse influxHealth() {
