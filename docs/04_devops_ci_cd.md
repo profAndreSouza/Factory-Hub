@@ -54,7 +54,7 @@ Todo commit deve seguir a padronização:
        / \
       / E2E \       Testes Ponta a Ponta (Simulação ESP32 até Dashboard React)
      /───────\
-    / Integração \   Testes de Rotas HTTP, Consumo SQS e Conexão PostgreSQL
+    / Integração \   Testes de Rotas HTTP, processamento SQS pela Lambda e conexões InfluxDB/PostgreSQL
    /───────────────\
   /    Unitários    \ Testes Isolados (JUnit 5 para regras OEE, Pytest para ML)
  /───────────────────\

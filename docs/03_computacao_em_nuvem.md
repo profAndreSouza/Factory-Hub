@@ -56,8 +56,9 @@ Para garantir alta disponibilidade sem perda de mensagens durante picos de produ
    ```sql
    SELECT * FROM 'industria/smartn1/telemetria'
    ```
-2. **Ação Direta para SQS:** Em vez de invocar uma função Lambda (que geraria custo por requisição), o IoT Core despacha a mensagem diretamente para a fila SQS utilizando a permissão da `LabRole`.
-3. **Desacoplamento Assíncrono:** Se o backend Java for reiniciado para uma atualização de versão, a fila SQS retém as mensagens com segurança por até 24 horas.
+2. **Ação da regra IoT para SQS:** O IoT Core despacha a mensagem diretamente para a fila SQS usando uma role de serviço com permissão de envio (`sqs:SendMessage`). A regra não invoca a Lambda diretamente.
+3. **Consumo por Lambda:** Uma integração SQS event source mapping aciona a função Lambda, que lê e valida os lotes, trata falhas com retentativas/DLQ e grava a telemetria bruta no InfluxDB. A Lambda precisa de permissões para consumir mensagens da fila e escrever no destino de dados.
+4. **Desacoplamento Assíncrono:** A SQS retém mensagens enquanto a Lambda está indisponível ou reprocessa falhas. O backend Java não consome essa fila: ele consulta as séries no InfluxDB e grava as consolidações no RDS.
 
 ---
 

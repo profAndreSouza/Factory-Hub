@@ -8,7 +8,7 @@
 1. [Diretrizes de Economia e Restrições do AWS Academy](#1-diretrizes-de-economia-e-restrições-do-aws-academy)
 2. [Fase 1: Infraestrutura como Código com Terraform](#fase-1-infraestrutura-como-código-com-terraform)
 3. [Fase 2: Firmware ESP32 no Wokwi e Ingestão no AWS IoT Core](#fase-2-firmware-esp32-no-wokwi-e-ingestão-no-aws-iot-core)
-4. [Fase 3: Buffer SQS e Backend Integrador Java](#fase-3-buffer-sqs-e-backend-integrador-java)
+4. [Fase 3: Buffer SQS, Lambda e Backend Integrador Java](#fase-3-buffer-sqs-lambda-e-backend-integrador-java)
 5. [Fase 4: Ciência de Dados & API de Predição com Redes Neurais](#fase-4-ciência-de-dados--api-de-predição-com-redes-neurais)
 6. [Fase 5: Frontend Dashboard em React](#fase-5-frontend-dashboard-em-react)
 7. [Fase 6: Pipeline de DevOps & CI/CD com GitHub Actions](#fase-6-pipeline-de-devops--cicd-com-github-actions)
@@ -41,6 +41,7 @@ Na pasta `terraform/`, estruture os arquivos:
 - `security_groups.tf`: Security groups para SSH (22), Web (80, 443, 8080, 5000) e RDS (5432 apenas da EC2).
 - `sqs.tf`: Fila `factory-telemetry-queue` e sua respectiva Dead Letter Queue (`factory-telemetry-dlq`).
 - `iot.tf`: Regra de tópico do AWS IoT Core que encaminha dados diretamente para a fila SQS.
+- `lambda.tf`: Função Lambda, política de execução e event source mapping da SQS, incluindo configuração de lote, retentativas e DLQ.
 - `rds.tf`: Instância PostgreSQL `db.t3.micro`.
 - `ec2.tf`: Instância `t3.small` associada à `LabRole`.
 
@@ -130,23 +131,27 @@ O ESP32 deve publicar a cada 3 a 5 segundos um JSON com campos compatíveis com 
 
 ---
 
-## Fase 3: Buffer SQS e Backend Integrador Java
+## Fase 3: Buffer SQS, Lambda e Backend Integrador Java
 
-**Meta da Fase:** Consumir da SQS de forma resiliente, gravar histórico e consolidar regras de negócio.
+**Meta da Fase:** Consumir a SQS de forma resiliente com Lambda, persistir telemetria bruta no InfluxDB e consolidar regras de negócio no backend Java.
 
-### 3.1. Arquitetura do Backend Java (Spring Boot 3)
-1. **Consumidor SQS:**
-   - Usar `@SqsListener("factoryhub-telemetria-queue")` (via `io.awspring.cloud:spring-cloud-aws-starter-sqs`).
-   - Processamento de mensagens em lotes (*batching*) para otimizar operações de I/O.
-2. **Armazenamento Híbrido:**
-   - **Banco Temporal (TimescaleDB / InfluxDB):** Inserir cada ponto bruto com granularidade de timestamp (para uso do time de Ciência de Dados).
-   - **Banco Relacional (RDS PostgreSQL):** Salvar tabelas `maquina`, `turno`, `apontamento_producao` e a tabela consolidada `indicadores_oee`.
-3. **Cálculo de Indicadores OEE (Motor de Regras):**
+### 3.1. Consumo da fila e ingestão temporal com AWS Lambda
+1. **Consumo SQS pela Lambda:**
+   - A IoT Topic Rule envia os eventos para `factory-telemetry-queue`; ela não invoca a Lambda diretamente.
+   - Configurar um event source mapping SQS para a função Lambda, com lote controlado, visibilidade compatível com o timeout da função, retentativas e DLQ.
+   - Tornar o processamento idempotente para evitar duplicidade quando a SQS entregar uma mensagem novamente.
+2. **Persistência temporal:** A Lambda valida o payload e grava cada medição bruta com timestamp no InfluxDB, para consultas históricas e treinamento de modelos.
+
+### 3.2. Arquitetura do Backend Java (Spring Boot 3)
+1. **Leitura e consolidação:**
+   - Consultar as séries temporais no InfluxDB; o Java não consome a fila SQS.
+   - Salvar no RDS PostgreSQL as tabelas `maquina`, `turno`, `apontamento_producao` e os indicadores consolidados `indicadores_oee`.
+2. **Cálculo de Indicadores OEE (Motor de Regras):**
    - **Disponibilidade ($A$):** $\frac{\text{Tempo em OPERATIONAL}}{\text{Tempo Total Programado}}$
    - **Performance ($P$):** $\frac{\text{Peças Produzidas}}{\text{Meta Teórica do Período}}$
    - **Qualidade ($Q$):** $\frac{\text{Peças Boas}}{\text{Peças Totais}}$
    - $\text{OEE} = A \times P \times Q \times 100\%$
-4. **Comunicação com a API de IA:**
+3. **Comunicação com a API de IA:**
    - Cliente HTTP (`WebClient` ou `RestClient`) invocando `POST http://ai-flask:5000/predict` para validar se os sensores indicam falha iminente.
 
 ---
@@ -373,7 +378,7 @@ jobs:
 - [ ] **Infraestrutura:** `terraform apply` executado com sucesso no AWS Academy usando a `LabRole`.
 - [ ] **Simulador Wokwi:** ESP32 enviando telemetria em formato JSON estável.
 - [ ] **Roteamento IoT:** IoT Topic Rule entregando mensagens na fila SQS sem rejeição.
-- [ ] **Consumo SQS:** Backend Java processando mensagens e descarregando a fila.
+- [ ] **Consumo SQS:** Event source mapping acionando a Lambda; mensagens processadas e removidas da fila após persistência no InfluxDB, com falhas encaminhadas à DLQ.
 - [ ] **Banco Temporal:** Leituras armazenadas com timestamp correto para consultas históricas.
 - [ ] **Inteligência Artificial:** Endpoint `/predict` da API Flask respondendo com probabilidade de anomalia válida.
 - [ ] **Consolidação de KPIs:** Métricas de Disponibilidade, Performance, Qualidade e OEE calculadas e gravadas no PostgreSQL.

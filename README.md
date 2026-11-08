@@ -112,11 +112,12 @@ flowchart TB
 | **Edge Simulado** | ESP32 (Wokwi C++) | Automação Industrial | Coletar/gerar telemetria contínua de sensores (temperatura, vibração, rotação, peças produzidas, peças defeituosas e estado operacional) e publicar via MQTT. |
 | **Painel Local / Monitor** | Node-RED | Automação Industrial | Validar os fluxos MQTT antes do envio à nuvem, simular falhas intencionais e atuar como ferramenta de observabilidade OT. |
 | **Ingestão IoT** | AWS IoT Core + Topic Rules | Nuvem / Automação | Broker gerenciado seguro para recebimento de telemetria e redirecionamento declarativo de pacotes via regra de tópico para a fila SQS. |
-| **Buffer de Ingestão** | Amazon SQS (com DLQ) | Computação em Nuvem | Absorver picos de tráfego de múltiplos dispositivos, garantindo que o backend processe as mensagens de forma assíncrona sem perda de dados. |
+| **Buffer de Ingestão** | Amazon SQS (com DLQ) | Computação em Nuvem | Absorver picos de tráfego de múltiplos dispositivos e desacoplar a ingestão do processamento pela função Lambda. |
+| **Consumidor da fila** | AWS Lambda | Nuvem / Automação | Consumir mensagens da SQS por event source mapping, validar telemetria e gravar medições brutas no InfluxDB. |
 | **Banco Temporal** | TimescaleDB / InfluxDB (Container) | Nuvem / Dados | Armazenamento de alta performance para séries temporais brutas, ideal para consultas de janelas deslizantes da rede neural. |
 | **Banco Relacional** | Amazon RDS PostgreSQL (`db.t3.micro`) | Computação em Nuvem | Armazenamento persistente de cadastros (máquinas, linhas de produção, operadores), apontamento de turnos e logs consolidados de OEE. |
 | **API de Predição** | Python 3.12 + Flask + scikit-learn | Ciência de Dados | Treinar e servir uma Random Forest. O adapter de treino atual usa dados mockados; a integração futura consultará séries temporais no InfluxDB. |
-| **Backend de Negócio** | Java 17/21 + Spring Boot 3 | Computação em Nuvem | Consumir da fila SQS, persistir nos bancos, calcular fórmulas de Disponibilidade, Performance e Qualidade (OEE) e intermediar previsões da IA. |
+| **Backend de Negócio** | Java 17/21 + Spring Boot 3 | Computação em Nuvem | Ler séries brutas do InfluxDB, consolidar dados e calcular Disponibilidade, Performance e Qualidade (OEE) no RDS, e intermediar previsões da IA. |
 | **Interface do Usuário** | React 18 + Vite + TailwindCSS | DevOps / Frontend | Exibir gráficos em tempo real de telemetria, painéis de OEE por máquina/turno e alertas preditivos de manutenção. |
 | **Infraestrutura como Código** | Terraform | Computação em Nuvem | Provisionar toda a topologia AWS dentro das restrições do AWS Academy com um comando reproduzível. |
 | **Esteira de CI/CD** | GitHub Actions + Docker Hub | DevOps | Orquestrar testes automatizados (unitários/integração), construir imagens Docker versionadas, publicar no Docker Hub e atualizar a EC2. |
@@ -214,10 +215,10 @@ Factory Hub/
 │   ├── README.md                  # Contrato, fonte mockada e integração planejada
 │   └── Dockerfile                 # Serviço Flask containerizado
 │
-├── backend-java/                  # Backend de Negócio & Ingestor SQS (Java)
+├── backend-java/                  # Backend de Negócio & API Java
 │   ├── pom.xml                    # Maven com dependências Spring Boot & AWS SDK
 │   ├── src/
-│   │   ├── main/java/...          # Controllers, Services, Listeners SQS, Entities
+│   │   ├── main/java/...          # Controllers, Services, integracoes e entidades
 │   │   └── test/java/...          # Testes unitários e de integração (JUnit 5, Mockito)
 │   └── Dockerfile                 # Imagem multi-stage Eclipse Temurin
 │
