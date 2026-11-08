@@ -106,7 +106,8 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - backend-java
+      backend-java:
+        condition: service_healthy
 
 volumes:
   influx-data:

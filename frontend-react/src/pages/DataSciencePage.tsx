@@ -75,17 +75,26 @@ export const DataSciencePage: React.FC = () => {
 
   useEffect(() => {
     getTelemetria('esp32-torno-01').then(setTelemetry).catch(() => setTelemetry([]));
-    getModelTrainingStatus().then(setTraining).catch(() => setTrainingError('Não foi possível consultar o estado do treinamento.'));
   }, []);
 
   useEffect(() => {
-    if (training?.state !== 'running') return;
-    const interval = setInterval(() => {
-      getModelTrainingStatus().then(setTraining).catch(() => {
-        setTrainingError('A conexão foi interrompida ao acompanhar o treinamento.');
+    if (training && training.state !== 'running') return;
+    let active = true;
+    const refreshTraining = () => {
+      getModelTrainingStatus().then(status => {
+        if (!active) return;
+        setTraining(status);
+        setTrainingError('');
+      }).catch(() => {
+        if (active) setTrainingError('Aguardando conexão com o serviço de treinamento…');
       });
-    }, 1200);
-    return () => clearInterval(interval);
+    };
+    refreshTraining();
+    const interval = setInterval(refreshTraining, 1500);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [training?.state]);
 
   const handleTrainModel = async () => {

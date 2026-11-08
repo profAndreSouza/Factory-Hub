@@ -35,7 +35,7 @@ def load_or_train_model(
             return artifact
 
     report = progress_callback or (lambda _stage, _message, _progress: None)
-    report("data", "Consultando o histórico de telemetria no InfluxDB.", 10)
+    report("data", f"Consultando os dados históricos na fonte {source.source_name}.", 10)
     rows = source.fetch_training_rows()
     if len(rows) < 30:
         raise ValueError("A fonte de treino precisa fornecer ao menos 30 medições rotuladas.")
@@ -63,6 +63,7 @@ def load_or_train_model(
         random_state=42,
         n_jobs=1,
     )
+    report("modeling", "Treinando a Random Forest com 120 árvores. Esta etapa pode levar alguns segundos.", 55)
     model.fit(x_train, y_train)
     report("modeling", "Floresta treinada. Calculando métricas no conjunto de validação.", 80)
     predictions = model.predict(x_test)
