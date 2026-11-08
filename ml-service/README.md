@@ -4,11 +4,11 @@ Microserviço de inferência usado exclusivamente pelo backend Java. O serviço 
 
 ## Origem dos dados de treino
 
-O contrato `TrainingDataSource` em `factoryhub_ml/data_source.py` separa a consulta dos dados do treinamento. Hoje, `MockTrainingDataSource` cria 2.400 registros sintéticos de temperatura, vibração e RPM com rótulos didáticos (`OPERATIONAL`, `WARNING`, `CRITICAL`). Esses registros simulam o formato esperado de uma consulta histórica ao InfluxDB; **não são dados medidos de uma máquina real**.
+O contrato `TrainingDataSource` em `factoryhub_ml/data_source.py` separa a consulta dos dados do treinamento. No Docker Compose, `InfluxTrainingDataSource` consulta o bucket `telemetry` do InfluxDB. O serviço `influx-seed` grava 14 dias de telemetria sintética para três máquinas antes de iniciar Flask e Java; **são dados didáticos, não medições de máquinas reais**. Fora do Compose, `MockTrainingDataSource` continua disponível como fallback.
 
-Quando o InfluxDB estiver disponível, implemente outro `TrainingDataSource` que consulte as medições históricas e seus rótulos de manutenção/condição. O restante do pipeline de treino e a API de predição podem continuar usando o mesmo formato.
+Os rótulos (`OPERATIONAL`, `WARNING`, `CRITICAL`) são derivados dos limites de temperatura e vibração das medições consultadas. O restante do pipeline de treino mantém o mesmo formato para qualquer fonte.
 
-O modelo divide os dados em treino e teste, calcula acurácia e F1 macro e guarda modelo, métricas, origem e data do treino em `ML_MODEL_PATH`. Se o artefato já existe, a aplicação carrega-o; para gerar um novo mock, remova o volume nomeado `ml-models` (`docker compose down -v` também remove os outros volumes do Compose).
+O modelo divide os dados em treino e teste, calcula acurácia e F1 macro e guarda modelo, métricas, origem e data do treino em `ML_MODEL_PATH`. Um artefato só é reutilizado quando a fonte registrada coincide com a fonte configurada. No Compose, a URL interna é `http://influxdb:8086`; a interface do InfluxDB fica disponível em `http://localhost:8086`.
 
 ## Rotas
 

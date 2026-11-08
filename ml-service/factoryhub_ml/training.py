@@ -24,12 +24,13 @@ def load_or_train_model(
 ) -> dict[str, Any]:
     """Load the persisted model, or train it once from the configured source."""
     path = Path(model_path)
+    source = data_source or MockTrainingDataSource()
     if path.exists():
         artifact = joblib.load(path)
-        artifact["loaded_from_disk"] = True
-        return artifact
+        if artifact.get("training_source") == source.source_name:
+            artifact["loaded_from_disk"] = True
+            return artifact
 
-    source = data_source or MockTrainingDataSource()
     rows = source.fetch_training_rows()
     if len(rows) < 30:
         raise ValueError("A fonte de treino precisa fornecer ao menos 30 medições rotuladas.")

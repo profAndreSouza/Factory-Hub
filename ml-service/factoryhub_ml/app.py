@@ -9,7 +9,7 @@ from typing import Any
 
 from flask import Flask, jsonify, request
 
-from .data_source import MockTrainingDataSource, TrainingDataSource
+from .data_source import InfluxTrainingDataSource, MockTrainingDataSource, TrainingDataSource
 from .predictor import PredictionService
 from .training import load_or_train_model
 
@@ -28,7 +28,18 @@ def create_app(
     app = Flask(__name__)
     started_at = monotonic()
     resolved_model_path = model_path or os.getenv("ML_MODEL_PATH", "./model/maintenance_model.joblib")
-    data_source = training_data_source or MockTrainingDataSource()
+    if training_data_source is not None:
+        data_source = training_data_source
+    elif os.getenv("ML_TRAINING_SOURCE", "mock").lower() == "influx":
+        data_source = InfluxTrainingDataSource(
+            url=os.getenv("INFLUXDB_URL", "http://localhost:8086"),
+            token=os.getenv("INFLUXDB_TOKEN", ""),
+            org=os.getenv("INFLUXDB_ORG", "factoryhub"),
+            bucket=os.getenv("INFLUXDB_BUCKET", "telemetry"),
+            days=int(os.getenv("ML_TRAINING_DAYS", "30")),
+        )
+    else:
+        data_source = MockTrainingDataSource()
 
     artifact = load_or_train_model(resolved_model_path, data_source)
     prediction_service = PredictionService(artifact)

@@ -2,7 +2,7 @@
 
 > **Projeto Integrador Multidisciplinar** conectando as disciplinas de **Automação Industrial**, **Ciência de Dados**, **Computação em Nuvem** e **Integração e Entrega Contínua (DevOps)**, dimensionado para o ambiente **AWS Academy Learner Lab**.
 
-> **Estado atual da integração:** o frontend chama somente a API Java. Máquinas, OEE, telemetria e alertas ainda usam mocks; a predição Java já encaminha para o serviço Flask, que treina uma Random Forest com telemetria sintética persistida no volume Docker. A origem de treino será substituída por consultas ao banco temporal quando ele estiver integrado. IoT Core, SQS/Lambda, RDS, InfluxDB real, Terraform e CI/CD ainda representam a arquitetura planejada.
+> **Estado atual da integração:** o frontend chama somente a API Java. No Compose local, o InfluxDB é inicializado com 14 dias de telemetria de demonstração; os endpoints Java de leituras e últimas medições consultam esse banco, e o Flask usa o histórico do InfluxDB para treinar a Random Forest. Cadastro de máquinas, OEE e alertas continuam mockados. IoT Core, SQS/Lambda, RDS, Terraform e CI/CD ainda representam a arquitetura planejada.
 
 ---
 
@@ -116,7 +116,7 @@ flowchart TB
 | **Consumidor da fila** | AWS Lambda | Nuvem / Automação | Consumir mensagens da SQS por event source mapping, validar telemetria e gravar medições brutas no InfluxDB. |
 | **Banco Temporal** | TimescaleDB / InfluxDB (Container) | Nuvem / Dados | Armazenamento de alta performance para séries temporais brutas, ideal para consultas de janelas deslizantes da rede neural. |
 | **Banco Relacional** | Amazon RDS PostgreSQL (`db.t3.micro`) | Computação em Nuvem | Armazenamento persistente de cadastros (máquinas, linhas de produção, operadores), apontamento de turnos e logs consolidados de OEE. |
-| **API de Predição** | Python 3.12 + Flask + scikit-learn | Ciência de Dados | Treinar e servir uma Random Forest. O adapter de treino atual usa dados mockados; a integração futura consultará séries temporais no InfluxDB. |
+| **API de Predição** | Python 3.12 + Flask + scikit-learn | Ciência de Dados | Consultar séries históricas no InfluxDB para treinar e servir uma Random Forest; aceitar dados sintéticos quando executado sem a integração local. |
 | **Backend de Negócio** | Java 17/21 + Spring Boot 3 | Computação em Nuvem | Ler séries brutas do InfluxDB, consolidar dados e calcular Disponibilidade, Performance e Qualidade (OEE) no RDS, e intermediar previsões da IA. |
 | **Interface do Usuário** | React 18 + Vite + TailwindCSS | DevOps / Frontend | Exibir gráficos em tempo real de telemetria, painéis de OEE por máquina/turno e alertas preditivos de manutenção. |
 | **Infraestrutura como Código** | Terraform | Computação em Nuvem | Provisionar toda a topologia AWS dentro das restrições do AWS Academy com um comando reproduzível. |

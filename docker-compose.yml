@@ -1,4 +1,45 @@
 services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: factoryhub-influxdb
+    restart: unless-stopped
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_USERNAME:-factoryhub}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD:-factoryhub-local-password}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG:-factoryhub}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET:-telemetry}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN:-factoryhub-local-token-change-me}
+      DOCKER_INFLUXDB_INIT_RETENTION: 0
+    ports:
+      - "8086:8086"
+    volumes:
+      - influx-data:/var/lib/influxdb2
+      - influx-config:/etc/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  influx-seed:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    image: factoryhub-ml-service:latest
+    container_name: factoryhub-influx-seed
+    command: ["python", "-m", "factoryhub_ml.seed_influx"]
+    environment:
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_ORG: ${INFLUXDB_ORG:-factoryhub}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-telemetry}
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-factoryhub-local-token-change-me}
+      INFLUXDB_SEED_DAYS: ${INFLUXDB_SEED_DAYS:-14}
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    restart: "no"
+
   ml-service:
     build:
       context: ./ml-service
@@ -7,7 +48,12 @@ services:
     container_name: factoryhub-ml-service
     restart: unless-stopped
     environment:
-      ML_MODEL_PATH: /app/model/maintenance_model.joblib
+      ML_MODEL_PATH: /app/model/maintenance_model_influx.joblib
+      ML_TRAINING_SOURCE: influx
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_ORG: ${INFLUXDB_ORG:-factoryhub}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-telemetry}
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-factoryhub-local-token-change-me}
     volumes:
       - ml-models:/app/model
     expose:
@@ -22,6 +68,9 @@ services:
       timeout: 5s
       start_period: 60s
       retries: 3
+    depends_on:
+      influx-seed:
+        condition: service_completed_successfully
 
   backend-java:
     build:
@@ -31,12 +80,18 @@ services:
     container_name: factoryhub-backend
     restart: unless-stopped
     environment:
-      SPRING_PROFILES_ACTIVE: mock
+      SPRING_PROFILES_ACTIVE: mock,influx
       SERVER_PORT: 8080
       ML_SERVICE_BASE_URL: http://ml-service:5000
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_ORG: ${INFLUXDB_ORG:-factoryhub}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-telemetry}
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-factoryhub-local-token-change-me}
     ports:
       - "8080:8080"
     depends_on:
+      influx-seed:
+        condition: service_completed_successfully
       ml-service:
         condition: service_healthy
 
@@ -54,5 +109,7 @@ services:
       - backend-java
 
 volumes:
+  influx-data:
+  influx-config:
   ml-models:
 

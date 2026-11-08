@@ -1,18 +1,16 @@
 package br.com.factoryhub.backend.infrastructure.mock;
 
-import br.com.factoryhub.backend.api.dto.AlertResponse;
 import br.com.factoryhub.backend.api.dto.MachineReadingResponse;
 import br.com.factoryhub.backend.api.dto.MachineResponse;
+import br.com.factoryhub.backend.api.dto.AlertResponse;
 import br.com.factoryhub.backend.api.dto.OeeResponse;
 import br.com.factoryhub.backend.api.dto.TelemetryResponse;
 import br.com.factoryhub.backend.application.port.OperationalDataPort;
-import br.com.factoryhub.backend.application.port.TelemetryDataPort;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -20,7 +18,7 @@ import java.util.Optional;
 /** Deterministic in-memory data used until the RDS and InfluxDB adapters are enabled. */
 @Component
 @Profile("mock")
-public class MockFactoryDataAdapter implements OperationalDataPort, TelemetryDataPort {
+public class MockFactoryDataAdapter implements OperationalDataPort {
     private static final String TORNO_01 = "esp32-torno-01";
     private static final String TORNO_02 = "esp32-torno-02";
     private static final String FRESADORA_01 = "esp32-fresadora-01";
@@ -30,9 +28,23 @@ public class MockFactoryDataAdapter implements OperationalDataPort, TelemetryDat
             TORNO_02, machine(TORNO_02, "Torno CNC Célula Smart N2", "USINAGEM", "WARNING", 85.2, 5.1, 2870, 392, 18),
             FRESADORA_01, machine(FRESADORA_01, "Fresadora CNC Smart N1", "FRESAGEM", "CRITICAL", 93.1, 7.4, 2640, 305, 26));
 
+    private final br.com.factoryhub.backend.application.port.TelemetryDataPort telemetryData;
+
+    public MockFactoryDataAdapter(br.com.factoryhub.backend.application.port.TelemetryDataPort telemetryData) {
+        this.telemetryData = telemetryData;
+    }
+
     @Override
     public List<MachineResponse> findMachines() {
-        return List.copyOf(machines.values());
+        return machines.values().stream().map(machine -> {
+            List<TelemetryResponse> recent = telemetryData.findRecent(machine.id());
+            if (recent.isEmpty()) return machine;
+            TelemetryResponse latest = recent.get(recent.size() - 1);
+            MachineReadingResponse reading = new MachineReadingResponse(
+                    latest.temperatura(), latest.vibracao(), latest.rpm(), latest.status(),
+                    latest.pecas_produzidas(), latest.pecas_defeito(), latest.timestamp());
+            return new MachineResponse(machine.id(), machine.nome(), machine.tipo(), latest.status(), reading);
+        }).toList();
     }
 
     @Override
@@ -56,29 +68,6 @@ public class MockFactoryDataAdapter implements OperationalDataPort, TelemetryDat
                         "ATENCAO", "Temperatura e vibração em elevação. Acompanhar a próxima janela de operação.", "MEDIUM"));
     }
 
-    @Override
-    public List<TelemetryResponse> findRecent(String deviceId) {
-        MachineResponse machine = machines.get(deviceId);
-        if (machine == null) return List.of();
-
-        List<TelemetryResponse> readings = new ArrayList<>();
-        Instant now = Instant.now();
-        for (int index = 29; index >= 0; index--) {
-            double wave = Math.sin(index * 0.56);
-            double temperature = machine.ultima_leitura().temperatura() + wave * 1.4;
-            double vibration = Math.max(0.2, machine.ultima_leitura().vibracao() + Math.cos(index * 0.42) * 0.35);
-            readings.add(new TelemetryResponse(
-                    now.minusSeconds(index * 60L),
-                    round1(temperature),
-                    round1(vibration),
-                    machine.ultima_leitura().rpm() + (int) Math.round(Math.cos(index * 0.31) * 24),
-                    machine.status_atual(),
-                    machine.ultima_leitura().pecas_produzidas(),
-                    machine.ultima_leitura().pecas_defeito()));
-        }
-        return readings;
-    }
-
     private static MachineResponse machine(String id, String name, String type, String status,
                                            double temperature, double vibration, int rpm,
                                            int produced, int defects) {
@@ -86,7 +75,4 @@ public class MockFactoryDataAdapter implements OperationalDataPort, TelemetryDat
                 new MachineReadingResponse(temperature, vibration, rpm, status, produced, defects, Instant.now()));
     }
 
-    private static double round1(double value) {
-        return Math.round(value * 10.0) / 10.0;
-    }
 }

@@ -13,6 +13,11 @@ server:
 factoryhub:
   ml:
     base-url: ${ML_SERVICE_BASE_URL:http://localhost:5000}
+  influx:
+    url: ${INFLUXDB_URL:http://localhost:8086}
+    org: ${INFLUXDB_ORG:factoryhub}
+    bucket: ${INFLUXDB_BUCKET:telemetry}
+    token: ${INFLUXDB_TOKEN:}
 
 management:
   endpoints:

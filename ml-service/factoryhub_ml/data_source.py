@@ -1,4 +1,4 @@
-"""Training data ports and the current deterministic mock provider."""
+"""Training data ports with InfluxDB and deterministic mock providers."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
 import numpy as np
+from influxdb_client import InfluxDBClient
 
 
 class TrainingDataSource(Protocol):
     """Supplies labelled historical readings to model training.
 
-    A future InfluxDB adapter should implement this interface and return the
-    same fields, replacing only the source of the records.
+    Adapters return the same fields regardless of the underlying source.
     """
 
     source_name: str
@@ -54,4 +54,62 @@ class MockTrainingDataSource:
                 "rpm": int(rpm),
                 "status": status,
             })
+        return rows
+
+
+class InfluxTrainingDataSource:
+    """Loads labelled historical sensor measurements from InfluxDB 2.x."""
+
+    source_name = "INFLUXDB"
+
+    def __init__(
+        self,
+        url: str,
+        token: str,
+        org: str,
+        bucket: str,
+        days: int = 30,
+    ) -> None:
+        self.url = url
+        self.token = token
+        self.org = org
+        self.bucket = bucket
+        self.days = days
+
+    def fetch_training_rows(self) -> list[dict[str, object]]:
+        flux = f'''from(bucket: "{self.bucket}")
+  |> range(start: -{self.days}d)
+  |> filter(fn: (r) => r._measurement == "machine_telemetry")
+  |> filter(fn: (r) => r._field == "temperatura" or r._field == "vibracao" or r._field == "rpm" or r._field == "pecas_produzidas" or r._field == "pecas_defeito")
+  |> pivot(rowKey: ["_time", "device_id"], columnKey: ["_field"], valueColumn: "_value")
+  |> sort(columns: ["_time"])
+'''
+        with InfluxDBClient(url=self.url, token=self.token, org=self.org) as client:
+            tables = client.query_api().query(query=flux, org=self.org)
+
+        rows: list[dict[str, object]] = []
+        for table in tables:
+            for record in table.records:
+                values = record.values
+                temperature = values.get("temperatura")
+                vibration = values.get("vibracao")
+                rpm = values.get("rpm")
+                if temperature is None or vibration is None or rpm is None:
+                    continue
+
+                if temperature >= 90.0 or vibration >= 7.0:
+                    status = "CRITICAL"
+                elif temperature >= 80.0 or vibration >= 4.5:
+                    status = "WARNING"
+                else:
+                    status = "OPERATIONAL"
+
+                rows.append({
+                    "device_id": str(values.get("device_id", "unknown")),
+                    "timestamp": record.get_time().isoformat(),
+                    "temperatura": float(temperature),
+                    "vibracao": float(vibration),
+                    "rpm": int(rpm),
+                    "status": status,
+                })
         return rows
