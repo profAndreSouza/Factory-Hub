@@ -51,6 +51,10 @@ Os Secrets AWS do Learner Lab expiram. Atualize os três antes de cada execuçã
 
 > **Atenção:** iniciar o workflow executa o `apply` automaticamente depois do `plan`; isso cria recursos AWS e pode gerar cobranças. Confira a configuração e as permissões antes de clicar em **Run workflow**.
 
+### Se o `apply` falhar depois de criar alguns recursos
+
+O Terraform pode criar parte da infraestrutura antes de encontrar um erro. Corrija a causa, publique a alteração e execute novamente o workflow: ele consulta o state remoto no S3 e planeja as alterações restantes. Não apague o state nem remova manualmente os recursos já criados.
+
 O workflow usa Terraform 1.10.5, executa `init`, `fmt -check`, `validate`, `plan` e `apply`, e impede duas execuções concorrentes. Se o bucket não existir, o versionamento estiver desativado ou faltar configuração, a execução para antes do `plan`/`apply`.
 
 O backend guarda state e lock no S3. O principal AWS usado pelo GitHub Actions precisa de `s3:ListBucket`, `s3:GetBucketLocation`, `s3:GetBucketVersioning`, leitura/escrita do objeto `factoryhub/terraform.tfstate` e leitura/escrita/remoção do arquivo de lock `factoryhub/terraform.tfstate.tflock`, além das permissões AWS de provisionamento. Restrinja essas permissões ao bucket e aos objetos do Factory Hub quando o ambiente permitir.
@@ -65,7 +69,15 @@ O output `frontend_url` aponta para o portal HTTP na porta 80. InfluxDB na porta
 
 ## Deploy da aplicação via SSM
 
-Após o provisionamento, aguarde a EC2 aparecer **Online** no Systems Manager. O workflow `.github/workflows/deploy-ssm.yml` publica as imagens Docker Hub e envia `AWS-RunShellScript` via SSM para executar `docker compose pull` e `up -d`.
+Após o provisionamento, aguarde a EC2 aparecer **Online** no Systems Manager. O workflow `.github/workflows/deploy-ssm.yml` só publica imagens se o commit enviado para `main` contiver a linha `- dockerhub publish` na mensagem. Nesse caso publica `latest` e `sha-<commit>`; se `SSM_DEPLOY_ENABLED=true`, também atualiza a EC2 via SSM. O acionamento manual do workflow não publica imagens e apenas reaplica na EC2 a imagem `latest` já existente.
+
+Para solicitar publicação, inclua o marcador no corpo da mensagem do commit, por exemplo:
+
+```text
+feat: preparar nova versão
+
+- dockerhub publish
+```
 
 O deploy pode ser acionado manualmente. Para ativar deploy automático após pushes em `main`, configure também a Repository variable `SSM_DEPLOY_ENABLED=true`. Atualize as credenciais AWS temporárias no GitHub sempre que expirarem.
 

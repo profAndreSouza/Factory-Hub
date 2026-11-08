@@ -227,7 +227,7 @@ volumes:
 
 ### 6.2. Workflow do GitHub Actions (`.github/workflows/deploy-ssm.yml`)
 
-O workflow executavel e a fonte de verdade. Ele publica imagens versionadas no Docker Hub e executa o deploy por `ssm:SendCommand`; nenhuma chave SSH ou porta 22 e necessaria. Configure `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN` como secrets. Use `workflow_dispatch` para deploy manual; apos validar a EC2 Online no SSM, defina a variavel `SSM_DEPLOY_ENABLED=true` para habilitar deploy automatico nos pushes em `main`.
+O workflow executavel e a fonte de verdade. Ele so publica imagens quando a mensagem do commit enviado a `main` inclui `- dockerhub publish`; publica as tags `latest` e `sha-<commit>`. Com `SSM_DEPLOY_ENABLED=true`, o mesmo commit publicado e implantado via SSM. O acionamento manual reaplica a imagem `latest` existente, sem publicar uma nova. Configure `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN` como secrets. Nenhuma chave SSH ou porta 22 e necessaria.
 
 ## Critérios de Validação e Checklist Final
 

@@ -1,4 +1,4 @@
-name: Build, publish and deploy through SSM
+name: Build and conditionally publish through SSM
 
 on:
   push:
@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   build-and-push:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '- dockerhub publish')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +52,12 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-frontend:sha-${{ github.sha }}
 
   deploy:
-    if: github.event_name == 'workflow_dispatch' || vars.SSM_DEPLOY_ENABLED == 'true'
+    if: >-
+      always() &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '- dockerhub publish') &&
+      vars.SSM_DEPLOY_ENABLED == 'true'))
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
@@ -65,7 +71,7 @@ jobs:
 
       - name: Send deploy command through Systems Manager
         env:
-          IMAGE_TAG: sha-${{ github.sha }}
+          IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && 'latest' || format('sha-{0}', github.sha) }}
         run: |
           deployment_command="cd /opt/factoryhub && git fetch origin main && git reset --hard origin/main && IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.cloud.yml pull && IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.cloud.yml up -d --remove-orphans"
           parameters=$(jq -cn --arg command "$deployment_command" '{commands:[$command]}')
