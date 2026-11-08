@@ -1,379 +1,396 @@
-import React, { useState } from 'react';
-import { BarChart3, Brain, Calculator, Sparkles, TrendingUp, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { PageHeader } from '../components/common/PageHeader';
+import { SectionTabs } from '../components/common/SectionTabs';
 import { TheoryBox } from '../components/common/TheoryBox';
+import { TelemetryLineChart } from '../components/charts/TelemetryLineChart';
+import { OeeGaugeChart } from '../components/charts/OeeGaugeChart';
+import { getTelemetria } from '../services/telemetryService';
+import { predict } from '../services/aiPredictService';
+import { TelemetryReading, PredictResponse } from '../types';
+
+const TABS = [
+  { id: 'teoria', label: '📚 Teoria' },
+  { id: 'lab', label: '🧪 Laboratório' },
+];
+
+const CRISP_DM_PHASES = [
+  {
+    phase: '1. Business Understanding',
+    color: 'bg-blue-500',
+    desc: 'Definir o objetivo de negócio: reduzir paradas não planejadas em 30% via manutenção preditiva.',
+    deliverable: 'Project Charter + KPIs',
+  },
+  {
+    phase: '2. Data Understanding',
+    color: 'bg-cyan-500',
+    desc: 'Explorar séries temporais de telemetria (temp, vibração, RPM). Identificar distribuições e anomalias.',
+    deliverable: 'EDA Report + Correlação',
+  },
+  {
+    phase: '3. Data Preparation',
+    color: 'bg-purple-500',
+    desc: 'Limpeza, normalização, feature engineering (médias móveis, FFT, desvio padrão rolling).',
+    deliverable: 'Dataset treino/validação',
+  },
+  {
+    phase: '4. Modeling',
+    color: 'bg-green-500',
+    desc: 'Treinar Random Forest Classifier com features temporais. Validação cruzada estratificada.',
+    deliverable: 'Modelo pkl + métricas',
+  },
+  {
+    phase: '5. Evaluation',
+    color: 'bg-amber-500',
+    desc: 'F1-Score (macro), Precision-Recall, Confusion Matrix. Foco em recall para CRITICAL.',
+    deliverable: 'Relatório de avaliação',
+  },
+  {
+    phase: '6. Deployment',
+    color: 'bg-red-500',
+    desc: 'Servir via Flask REST API (POST /predict). Containerizado com Docker, CI/CD via GitHub Actions.',
+    deliverable: 'API em produção + monitoramento',
+  },
+];
 
 export const DataSciencePage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'teoria' | 'laboratorio'>('teoria');
+  const [activeTab, setActiveTab] = useState('teoria');
+  const [telemetry, setTelemetry] = useState<TelemetryReading[]>([]);
 
-  // Sliders da Rede Neural
-  const [temp, setTemp] = useState<number>(72.0);
-  const [vib, setVib] = useState<number>(2.5);
-  const [rpm, setRpm] = useState<number>(3480);
+  // OEE Calculator
+  const [disp, setDisp] = useState(91);
+  const [perf, setPerf] = useState(87);
+  const [qual, setQual] = useState(98);
+  const oee = parseFloat(((disp / 100) * (perf / 100) * (qual / 100) * 100).toFixed(1));
 
-  // Sliders do OEE
-  const [tempoPlanejado, setTempoPlanejado] = useState<number>(480); // minutos (8h)
-  const [tempoParada, setTempoParada] = useState<number>(35); // minutos
-  const [capacidadeNominal, setCapacidadeNominal] = useState<number>(500); // peças
-  const [pecasProduzidas, setPecasProduzidas] = useState<number>(460); // peças
-  const [pecasDefeito, setPecasDefeito] = useState<number>(12); // peças
+  // AI Playground
+  const [aiTemp, setAiTemp] = useState(72);
+  const [aiVib, setAiVib] = useState(2.5);
+  const [aiRpm, setAiRpm] = useState(3100);
+  const [aiResult, setAiResult] = useState<PredictResponse | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
-  // Cálculo da Rede Neural MLP (função sigmoide ponderada didática que espelha o modelo treinado)
-  const calculateNeuralInference = () => {
-    // Normalização similar ao StandardScaler
-    const normTemp = (temp - 60) / 15;
-    const normVib = (vib - 2.0) / 1.5;
-    const normRpm = (3500 - rpm) / 500;
+  useEffect(() => {
+    getTelemetria('esp32-torno-01').then(setTelemetry);
+  }, []);
 
-    // Função de ativação logística ponderada
-    const z = 1.8 * normTemp + 2.5 * normVib + 0.8 * normRpm - 3.2;
-    const prob = 1 / (1 + Math.exp(-z));
-    return Math.min(Math.max(prob, 0.01), 0.99);
+  const handlePredict = async () => {
+    setAiLoading(true);
+    try {
+      const res = await predict({
+        device_id: 'esp32-playground-01',
+        temperatura: aiTemp,
+        vibracao: aiVib,
+        rpm: aiRpm,
+      });
+      setAiResult(res);
+    } finally {
+      setAiLoading(false);
+    }
   };
 
-  const probFalha = calculateNeuralInference();
-  const isAnomaly = probFalha >= 0.70;
+  const oeeColor =
+    oee >= 85 ? 'text-green-600 dark:text-green-400' : oee >= 65 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
+  const oeeBarColor = oee >= 85 ? 'bg-green-500' : oee >= 65 ? 'bg-amber-500' : 'bg-red-500';
 
-  // Cálculos do OEE
-  const tempoOperacional = Math.max(tempoPlanejado - tempoParada, 0);
-  const disponibilidade = tempoPlanejado > 0 ? (tempoOperacional / tempoPlanejado) * 100 : 0;
-  const performance = capacidadeNominal > 0 ? (pecasProduzidas / capacidadeNominal) * 100 : 0;
-  const pecasBoas = Math.max(pecasProduzidas - pecasDefeito, 0);
-  const qualidade = pecasProduzidas > 0 ? (pecasBoas / pecasProduzidas) * 100 : 0;
-  const oee = (disponibilidade / 100) * (performance / 100) * (qualidade / 100) * 100;
+  const riskColor =
+    (aiResult?.probabilidade_falha ?? 0) >= 75
+      ? 'bg-red-500'
+      : (aiResult?.probabilidade_falha ?? 0) >= 40
+      ? 'bg-amber-500'
+      : 'bg-green-500';
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header com Navegação de Abas */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-6 h-6 text-emerald-400" />
-            <h2 className="text-2xl font-bold text-white">Ciência de Dados & Inteligência Artificial</h2>
+    <div className="max-w-5xl mx-auto">
+      <PageHeader
+        icon="📊"
+        title="Ciência de Dados"
+        subtitle="CRISP-DM · OEE · Feature Engineering · ML Preditivo"
+        badge="Semanas 4–6"
+        badgeColor="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+      />
+
+      <SectionTabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
+
+      {activeTab === 'teoria' && (
+        <div className="space-y-6">
+          {/* CRISP-DM */}
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">🔄 CRISP-DM — 6 Fases</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {CRISP_DM_PHASES.map(p => (
+                <div
+                  key={p.phase}
+                  className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm"
+                >
+                  <div className={`inline-block text-xs font-bold text-white px-2 py-0.5 rounded-full mb-2 ${p.color}`}>
+                    {p.phase}
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">{p.desc}</p>
+                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-500">
+                    📄 {p.deliverable}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            CRISP-DM, séries temporais, inferência com Redes Neurais (MLP) e cálculo do OEE.
-          </p>
-        </div>
 
-        <div className="flex rounded-xl bg-slate-900 p-1 border border-slate-800">
-          <button
-            onClick={() => setActiveTab('teoria')}
-            className={`rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
-              activeTab === 'teoria'
-                ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            📚 Apostila & Conceitos
-          </button>
-          <button
-            onClick={() => setActiveTab('laboratorio')}
-            className={`rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
-              activeTab === 'laboratorio'
-                ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            🧪 Laboratório de IA & OEE
-          </button>
-        </div>
-      </div>
-
-      {activeTab === 'teoria' ? (
-        /* CONTEÚDO TEÓRICO */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <TheoryBox
-            discipline="Ciência de Dados"
-            week="Semana 01 a 04"
-            title="Ciclo CRISP-DM Aplicado à Indústria 4.0"
-          >
-            <p className="mb-2">
-              A metodologia <strong>CRISP-DM</strong> estrutura o pipeline de inteligência:
-            </p>
-            <ol className="list-decimal pl-5 space-y-1">
-              <li><strong>Business Understanding:</strong> Reduzir custos com paradas não planejadas de usinagem.</li>
-              <li><strong>Data Understanding:</strong> Explorar distribuição de temperatura, vibração e ruído acústico.</li>
-              <li><strong>Data Preparation:</strong> Tratamento de valores nulos, normalização e janelas móveis de tempo.</li>
-              <li><strong>Modeling:</strong> Treinamento da Rede Neural MLP para classificação de risco.</li>
-              <li><strong>Evaluation:</strong> Avaliação de Recall e custos de falsos negativos versus falsos positivos.</li>
-              <li><strong>Deployment:</strong> Servir a predição via microsserviço Python Flask na nuvem.</li>
-            </ol>
-          </TheoryBox>
-
-          <TheoryBox
-            discipline="Ciência de Dados"
-            week="Semana 07"
-            title="Análise de Séries Temporais (Time Series)"
-          >
-            <p className="mb-2">
-              Telemetria contínua de máquinas é decomposta em 3 componentes aditivos ou multiplicativos:
-            </p>
-            <div className="rounded bg-slate-950 p-2 font-mono text-xs text-slate-300">
-              Y(t) = Tendência(t) + Sazonalidade(t) + Resíduo(t)
-            </div>
-            <p className="mt-2 text-xs text-slate-400">
-              - <strong>Tendência:</strong> Desgaste progressivo de mancais ao longo de semanas.<br/>
-              - <strong>Sazonalidade:</strong> Variação térmica diurna/noturna na fábrica.<br/>
-              - <strong>Resíduo:</strong> Picos anômalos pontuais onde o modelo de detecção atua.
-            </p>
-          </TheoryBox>
-
-          <TheoryBox
-            discipline="Ciência de Dados"
-            week="Semana 10 a 13"
-            title="Redes Neurais Artificiais (MLP) para Detecção de Falhas"
-          >
-            <p className="mb-2">
-              O modelo <strong>Multilayer Perceptron (MLP)</strong> processa os vetores de atributos dos sensores:
-            </p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li><strong>Camada de Entrada:</strong> Sensores normalizados (Temperatura, Vibração, RPM).</li>
-              <li><strong>Camadas Ocultas:</strong> Neurônios com funções de ativação ReLU e regularização por Dropout (20%) para evitar overfitting.</li>
-              <li><strong>Camada de Saída:</strong> Ativação Sigmoide gerando probabilidade de anomalia $P \in [0, 1]$.</li>
-            </ul>
-          </TheoryBox>
-
-          <TheoryBox
-            discipline="Ciência de Dados"
-            week="Semana 14 a 16"
-            title="Fórmulas Matemáticas do OEE (Overall Equipment Effectiveness)"
-            type="formula"
-          >
-            <p className="mb-2">
-              O OEE é o padrão internacional para produtividade de ativos fabris:
-            </p>
-            <div className="space-y-1 rounded bg-slate-950 p-2.5 font-mono text-xs text-emerald-300">
-              <div>D = (Tempo Operando / Tempo Planejado) × 100%</div>
-              <div>P = (Peças Reais / Capacidade Nominal) × 100%</div>
-              <div>Q = (Peças Boas / Peças Totais) × 100%</div>
-              <div className="text-white font-bold border-t border-slate-800 pt-1">
-                OEE = D × P × Q (Meta Classe Mundial: ≥ 85%)
-              </div>
-            </div>
-          </TheoryBox>
-        </div>
-      ) : (
-        /* LABORATÓRIO INTERATIVO */
-        <div className="space-y-8">
-          {/* Seção 1: Playground da Rede Neural */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-5">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-purple-400" />
-                  Inferência Online da Rede Neural (API Python Flask Mock)
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Ajuste os parâmetros para simular a resposta imediata do modelo preditivo em produção.
-                </p>
-              </div>
-              <span className="text-[11px] font-mono bg-purple-950 text-purple-300 border border-purple-800 px-2.5 py-1 rounded-md">
-                Modelo: MLP-v1.2 (PyTorch)
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Controles de Entrada */}
-              <div className="lg:col-span-2 space-y-4">
-                <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-                  <div className="flex justify-between text-xs text-slate-400">
-                    <span>Temperatura do Mancal</span>
-                    <strong className="text-amber-400 font-mono text-sm">{temp.toFixed(1)} °C</strong>
+          {/* OEE Formula */}
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">📐 Fórmula OEE</h2>
+            <TheoryBox type="formula" title="Overall Equipment Effectiveness">
+              <div className="text-center space-y-3 py-2">
+                <div className="font-mono text-lg font-bold text-purple-700 dark:text-purple-300">
+                  OEE = Disponibilidade × Performance × Qualidade
+                </div>
+                <div className="flex justify-center gap-4 flex-wrap text-sm">
+                  <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-lg font-mono">
+                    D = Tempo Produtivo / Tempo Planejado
                   </div>
-                  <input
-                    type="range"
-                    min="50"
-                    max="105"
-                    step="0.5"
-                    value={temp}
-                    onChange={(e) => setTemp(parseFloat(e.target.value))}
-                    className="w-full mt-2 accent-amber-500"
-                  />
-                  <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-                    <span>Faixa normal: 60-75°C</span>
-                    <span>Zona crítica: &gt; 90°C</span>
+                  <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-4 py-2 rounded-lg font-mono">
+                    P = Peças Reais / Peças Teóricas
+                  </div>
+                  <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-4 py-2 rounded-lg font-mono">
+                    Q = Peças Boas / Peças Totais
                   </div>
                 </div>
-
-                <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-                  <div className="flex justify-between text-xs text-slate-400">
-                    <span>Vibração RMS</span>
-                    <strong className="text-sky-400 font-mono text-sm">{vib.toFixed(2)} mm/s</strong>
-                  </div>
-                  <input
-                    type="range"
-                    min="1.0"
-                    max="10.0"
-                    step="0.1"
-                    value={vib}
-                    onChange={(e) => setVib(parseFloat(e.target.value))}
-                    className="w-full mt-2 accent-sky-500"
-                  />
-                  <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-                    <span>Faixa normal: 1.5-3.0 mm/s</span>
-                    <span>Zona crítica: &gt; 5.5 mm/s</span>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-                  <div className="flex justify-between text-xs text-slate-400">
-                    <span>Velocidade de Rotação</span>
-                    <strong className="text-purple-400 font-mono text-sm">{rpm} RPM</strong>
-                  </div>
-                  <input
-                    type="range"
-                    min="1500"
-                    max="4200"
-                    step="50"
-                    value={rpm}
-                    onChange={(e) => setRpm(parseInt(e.target.value))}
-                    className="w-full mt-2 accent-purple-500"
-                  />
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  World Class: OEE ≥ 85% | Aceitável: 65–85% | Crítico: &lt; 65%
                 </div>
               </div>
+            </TheoryBox>
+          </div>
 
-              {/* Resultado do Diagnóstico da IA */}
-              <div className={`rounded-xl border p-5 flex flex-col justify-between ${
-                isAnomaly
-                  ? 'border-rose-500/50 bg-rose-950/20'
-                  : 'border-emerald-500/50 bg-emerald-950/20'
-              }`}>
-                <div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Diagnóstico Preditivo
-                  </span>
-                  <div className="mt-2 flex items-baseline gap-2">
-                    <span className={`text-4xl font-extrabold font-mono ${
-                      isAnomaly ? 'text-rose-400' : 'text-emerald-400'
-                    }`}>
-                      {(probFalha * 100).toFixed(1)}%
-                    </span>
-                    <span className="text-xs text-slate-400">risco de anomalia</span>
-                  </div>
-
-                  {/* Barra de Progresso do Risco */}
-                  <div className="w-full bg-slate-800 rounded-full h-2.5 mt-3 overflow-hidden">
-                    <div
-                      className={`h-2.5 rounded-full transition-all duration-300 ${
-                        isAnomaly ? 'bg-rose-500' : 'bg-emerald-500'
-                      }`}
-                      style={{ width: `${probFalha * 100}%` }}
-                    ></div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-slate-800/80">
-                    <div className="flex items-center gap-2 mb-1">
-                      {isAnomaly ? (
-                        <AlertTriangle className="w-4 h-4 text-rose-400" />
-                      ) : (
-                        <Sparkles className="w-4 h-4 text-emerald-400" />
-                      )}
-                      <span className={`text-xs font-bold ${isAnomaly ? 'text-rose-300' : 'text-emerald-300'}`}>
-                        {isAnomaly ? 'RISCO DE FALHA DETECTADO' : 'OPERAÇÃO DENTRO DOS PADRÕES'}
-                      </span>
+          {/* Neural Network Topology */}
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">🧠 Topologia da Rede Neural</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+              <div className="flex items-center justify-around font-mono text-xs">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="text-gray-400 font-semibold mb-1">INPUT</div>
+                  {['temperatura', 'vibracao', 'rpm', 'temp_ma5', 'vib_std'].map(f => (
+                    <div key={f} className="w-24 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-center px-1 leading-tight text-xs">
+                      {f}
                     </div>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      {isAnomaly
-                        ? 'Temperatura ou vibração elevadas indicam desgaste iminente. Agendar manutenção preventiva.'
-                        : 'Sinais consistentes com a curva normal de calibração da máquina.'}
-                    </p>
-                  </div>
+                  ))}
                 </div>
+                <div className="text-gray-300 dark:text-gray-600 text-2xl mx-2">→</div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="text-gray-400 font-semibold mb-1">HIDDEN 1</div>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="w-10 h-10 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold">
+                      {i + 1}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-gray-300 dark:text-gray-600 text-2xl mx-2">→</div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="text-gray-400 font-semibold mb-1">HIDDEN 2</div>
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold">
+                      {i + 1}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-gray-300 dark:text-gray-600 text-2xl mx-2">→</div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="text-gray-400 font-semibold mb-1">OUTPUT</div>
+                  {['OPERATIONAL', 'WARNING', 'CRITICAL'].map(cls => (
+                    <div
+                      key={cls}
+                      className={`w-24 h-8 rounded-full text-white flex items-center justify-center text-xs font-bold ${
+                        cls === 'OPERATIONAL' ? 'bg-green-500' : cls === 'WARNING' ? 'bg-amber-500' : 'bg-red-500'
+                      }`}
+                    >
+                      {cls}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-4">
+                Arquitetura ilustrativa. O modelo final utiliza Random Forest (100 estimadores) com feature importance sobre séries temporais.
+              </p>
+            </div>
+          </div>
 
-                <div className="mt-4 text-[10px] text-slate-500 font-mono">
-                  Endpoint: POST http://ai-flask:5000/predict
+          {/* Time Series */}
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">📉 Decomposição de Série Temporal</h2>
+            <TheoryBox type="formula" title="Modelo Aditivo de Decomposição">
+              <div className="text-center font-mono text-base font-bold text-purple-700 dark:text-purple-300 my-2">
+                Y(t) = T(t) + S(t) + R(t)
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs mt-3">
+                <div className="text-center bg-blue-50 dark:bg-blue-900/20 rounded p-2">
+                  <div className="font-bold text-blue-600 dark:text-blue-400">T(t)</div>
+                  <div className="text-gray-600 dark:text-gray-400">Tendência — degradação gradual do rolamento</div>
+                </div>
+                <div className="text-center bg-green-50 dark:bg-green-900/20 rounded p-2">
+                  <div className="font-bold text-green-600 dark:text-green-400">S(t)</div>
+                  <div className="text-gray-600 dark:text-gray-400">Sazonalidade — ciclos de turno e manutenção</div>
+                </div>
+                <div className="text-center bg-amber-50 dark:bg-amber-900/20 rounded p-2">
+                  <div className="font-bold text-amber-600 dark:text-amber-400">R(t)</div>
+                  <div className="text-gray-600 dark:text-gray-400">Resíduo — ruído e anomalias pontuais</div>
+                </div>
+              </div>
+            </TheoryBox>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'lab' && (
+        <div className="space-y-6">
+          {/* OEE Calculator */}
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">🧮 Calculadora OEE</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                <div className="space-y-5">
+                  {[
+                    { label: 'Disponibilidade', value: disp, setter: setDisp, color: 'accent-blue-500' },
+                    { label: 'Performance', value: perf, setter: setPerf, color: 'accent-green-500' },
+                    { label: 'Qualidade', value: qual, setter: setQual, color: 'accent-purple-500' },
+                  ].map(({ label, value, setter, color }) => (
+                    <div key={label}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600 dark:text-gray-400 font-medium">{label}</span>
+                        <span className="font-bold text-gray-800 dark:text-gray-200">{value}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={value}
+                        onChange={e => setter(Number(e.target.value))}
+                        className={`w-full h-2 rounded-full ${color}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-col items-center gap-3">
+                  <OeeGaugeChart oee={oee} size={180} />
+                  <div className={`text-sm font-semibold ${oeeColor}`}>
+                    OEE Global: {oee}%
+                  </div>
+                  <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3">
+                    <div
+                      className={`h-3 rounded-full transition-all duration-300 ${oeeBarColor}`}
+                      style={{ width: `${oee}%` }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Seção 2: Calculadora Dinâmica de OEE */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-5">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Calculator className="w-5 h-5 text-emerald-400" />
-                  Calculadora Interativa de Eficiência Global (OEE)
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Manipule os 3 pilares do indicador industrial para compreender as fontes de perdas.
-                </p>
+          {/* AI Playground */}
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">🤖 Playground IA — Manutenção Preditiva</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-5">
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600 dark:text-gray-400">Temperatura</span>
+                      <span className="font-bold text-gray-800 dark:text-gray-200">{aiTemp}°C</span>
+                    </div>
+                    <input
+                      type="range" min={50} max={100} value={aiTemp}
+                      onChange={e => setAiTemp(Number(e.target.value))}
+                      className="w-full h-2 rounded-full accent-red-500"
+                    />
+                    <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+                      <span>50°C</span><span>100°C</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600 dark:text-gray-400">Vibração</span>
+                      <span className="font-bold text-gray-800 dark:text-gray-200">{aiVib.toFixed(1)} mm/s</span>
+                    </div>
+                    <input
+                      type="range" min={0} max={10} step={0.1} value={aiVib}
+                      onChange={e => setAiVib(Number(e.target.value))}
+                      className="w-full h-2 rounded-full accent-amber-500"
+                    />
+                    <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+                      <span>0 mm/s</span><span>10 mm/s</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600 dark:text-gray-400">RPM</span>
+                      <span className="font-bold text-gray-800 dark:text-gray-200">{aiRpm}</span>
+                    </div>
+                    <input
+                      type="range" min={2500} max={4000} step={50} value={aiRpm}
+                      onChange={e => setAiRpm(Number(e.target.value))}
+                      className="w-full h-2 rounded-full accent-blue-500"
+                    />
+                    <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+                      <span>2500</span><span>4000</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handlePredict}
+                    disabled={aiLoading}
+                    className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold text-sm transition-colors"
+                  >
+                    {aiLoading ? '⟳ Analisando...' : '🔍 Analisar'}
+                  </button>
+                </div>
+
+                {aiResult ? (
+                  <div className="space-y-3">
+                    <div
+                      className={`rounded-xl p-4 border ${
+                        aiResult.status_previsto === 'CRITICAL'
+                          ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
+                          : aiResult.status_previsto === 'WARNING'
+                          ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+                          : 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Status Previsto</span>
+                        <span
+                          className={`text-xs font-bold px-2 py-0.5 rounded-full text-white ${
+                            aiResult.status_previsto === 'CRITICAL' ? 'bg-red-500' : aiResult.status_previsto === 'WARNING' ? 'bg-amber-500' : 'bg-green-500'
+                          }`}
+                        >
+                          {aiResult.status_previsto}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                        Risco de Falha: <span className="font-bold text-gray-800 dark:text-gray-200">{aiResult.probabilidade_falha}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
+                        <div
+                          className={`h-4 rounded-full transition-all duration-500 ${riskColor}`}
+                          style={{ width: `${aiResult.probabilidade_falha}%` }}
+                        />
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                        💡 {aiResult.recomendacao}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-2 font-mono">
+                        Modelo: {aiResult.modelo_versao}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl text-gray-400 text-sm">
+                    Configure os parâmetros e clique em Analisar
+                  </div>
+                )}
               </div>
-              <span className="text-xs font-bold text-emerald-400 bg-emerald-950 border border-emerald-800 px-3 py-1 rounded-lg">
-                OEE Global: {oee.toFixed(1)}%
-              </span>
             </div>
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Disponibilidade */}
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-slate-300">1. Disponibilidade</span>
-                  <span className="font-bold text-sky-400 text-sm font-mono">{disponibilidade.toFixed(1)}%</span>
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-400">Tempo de Parada: {tempoParada} min</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="180"
-                    step="5"
-                    value={tempoParada}
-                    onChange={(e) => setTempoParada(parseInt(e.target.value))}
-                    className="w-full accent-sky-500"
-                  />
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Tempo Operado: {tempoOperacional} min / {tempoPlanejado} min programados
-                </p>
-              </div>
-
-              {/* Performance */}
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-slate-300">2. Performance</span>
-                  <span className="font-bold text-amber-400 text-sm font-mono">{performance.toFixed(1)}%</span>
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-400">Produzidas: {pecasProduzidas} peças</label>
-                  <input
-                    type="range"
-                    min="200"
-                    max="600"
-                    step="10"
-                    value={pecasProduzidas}
-                    onChange={(e) => setPecasProduzidas(parseInt(e.target.value))}
-                    className="w-full accent-amber-500"
-                  />
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Meta teórica do turno: {capacidadeNominal} peças
-                </p>
-              </div>
-
-              {/* Qualidade */}
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-slate-300">3. Qualidade</span>
-                  <span className="font-bold text-emerald-400 text-sm font-mono">{qualidade.toFixed(1)}%</span>
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-400">Peças com Defeito: {pecasDefeito}</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="50"
-                    step="1"
-                    value={pecasDefeito}
-                    onChange={(e) => setPecasDefeito(parseInt(e.target.value))}
-                    className="w-full accent-emerald-500"
-                  />
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Peças Conformes: {pecasBoas} de {pecasProduzidas}
-                </p>
-              </div>
-            </div>
+          {/* Telemetry Chart */}
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">📈 Série Temporal — esp32-torno-01</h2>
+            <TelemetryLineChart data={telemetry} title="Temperatura · Vibração · RPM (últimos 30 min)" />
           </div>
         </div>
       )}

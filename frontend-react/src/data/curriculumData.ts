@@ -1,110 +1,109 @@
-export interface DisciplineInfo {
+export interface ModuleCurriculum {
   id: string;
-  name: string;
-  shortName: string;
-  code: string;
-  hours: number;
+  title: string;
+  discipline: string;
+  disciplineColor: string;
+  weeks: string;
   icon: string;
-  color: string;
-  tagline: string;
+  description: string;
   keyConcepts: string[];
-  weeksSummary: { week: string; topic: string; practicalFocus: string }[];
+  route: string;
 }
 
-export const CURRICULUM_DATA: Record<string, DisciplineInfo> = {
-  automacao: {
+export const curriculumData: ModuleCurriculum[] = [
+  {
     id: 'automacao',
-    name: 'Automação Industrial',
-    shortName: 'Automação',
-    code: 'AUT-80',
-    hours: 80,
-    icon: 'Cpu',
-    color: 'from-amber-500 to-orange-600',
-    tagline: 'Da instrumentação de campo (sensores/CLP) ao protocolo MQTT e orquestração Node-RED',
+    title: 'Automação Industrial',
+    discipline: 'Industrial Automation',
+    disciplineColor: 'bg-blue-500',
+    weeks: 'Semanas 1–3',
+    icon: '⚡',
+    description:
+      'Fundamentos de IIoT com ESP32, protocolo MQTT, ISA-95 e integração Node-RED para aquisição de dados em tempo real.',
     keyConcepts: [
-      'Pirâmide ISA-95 (Níveis 0 a 4)',
-      'Sensores Indutivos, Capacitivos e Fotoelétricos',
-      'Protocolo MQTT (Pub/Sub, Tópicos, QoS 0/1/2)',
-      'Node-RED: Ingestão, Histerese e Ciclo de Alertas',
-      'Integração TI/TA (Chão de Fábrica ao Cloud)'
+      'ISA-95 — Hierarquia de automação (Nível 0–4)',
+      'MQTT — QoS 0, 1, 2 e estrutura de tópicos',
+      'ESP32 — Sensores de temperatura (DS18B20), vibração (MPU-6050)',
+      'Node-RED — Fluxos de processamento e dashboard',
+      'Histerese — Thresholds e debounce de alarmes',
+      'Sinais discretos vs analógicos',
     ],
-    weeksSummary: [
-      { week: 'Sem. 01-03', topic: 'ISA-95 & Sensores Industriais', practicalFocus: 'Identificação de sinais PNP/NPN, atuadores e ciclo de scan' },
-      { week: 'Sem. 04-05', topic: 'MQTT & Node-RED Básico', practicalFocus: 'Broker Mosquitto, payloads JSON e flow-based programming' },
-      { week: 'Sem. 07-10', topic: 'Tratamento & Roteamento IIoT', practicalFocus: 'Construção nó a nó do fluxo: switch, change e function' },
-      { week: 'Sem. 12-13', topic: 'QoS & Ciclo de Alertas', practicalFocus: 'Tratamento de falhas, supressão de ruído e histerese' },
-      { week: 'Sem. 15-17', topic: 'ADS Factory Hub Integrado', practicalFocus: 'Conexão Wokwi/Node-RED ao AWS IoT Core e persistência' }
-    ]
+    route: '/automacao',
   },
-  cienciaDados: {
-    id: 'cienciaDados',
-    name: 'Ciência de Dados',
-    shortName: 'Ciência de Dados',
-    code: 'DAT-80',
-    hours: 80,
-    icon: 'BarChart3',
-    color: 'from-emerald-500 to-teal-600',
-    tagline: 'Do ciclo CRISP-DM às Redes Neurais para manutenção preditiva e cálculo do OEE',
+  {
+    id: 'ciencia-de-dados',
+    title: 'Ciência de Dados',
+    discipline: 'Data Science',
+    disciplineColor: 'bg-purple-500',
+    weeks: 'Semanas 4–6',
+    icon: '📊',
+    description:
+      'Pipeline CRISP-DM, cálculo de OEE, feature engineering em séries temporais e modelo de ML para manutenção preditiva.',
     keyConcepts: [
-      'Metodologia CRISP-DM Industrial',
-      'Estatística Descritiva & EDA em Telemetria',
-      'Séries Temporais (Decomposição, Médias Móveis EWMA)',
-      'Redes Neurais MLP & LSTM para Detecção de Anomalias',
-      'Cálculo do OEE (Disponibilidade, Performance, Qualidade)'
+      'CRISP-DM — 6 fases do ciclo de vida de dados',
+      'OEE — Disponibilidade × Performance × Qualidade',
+      'Feature Engineering — Médias móveis, FFT, desvio padrão',
+      'Random Forest — Classificador de falhas',
+      'Decomposição temporal — Y(t) = T(t) + S(t) + R(t)',
+      'Flask REST API — Endpoint /predict',
     ],
-    weeksSummary: [
-      { week: 'Sem. 01-04', topic: 'CRISP-DM & Estatística', practicalFocus: 'EDA, custos assimétricos de falha, matriz de confusão e ROI' },
-      { week: 'Sem. 05-07', topic: 'Testes de Hipótese & Séries Temporais', practicalFocus: 'Shapiro-Wilk, sazonalidade, janelamento e resíduos' },
-      { week: 'Sem. 10-12', topic: 'Redes Neurais (MLP)', practicalFocus: 'Tensores, backpropagation, ativações e treino de MLP tabular' },
-      { week: 'Sem. 13', topic: 'Arquiteturas Especializadas', practicalFocus: 'LSTM para sequências e Autoencoders para anomalias' },
-      { week: 'Sem. 15-17', topic: 'ADS Factory Hub Integrado', practicalFocus: 'API Flask de predição servindo a inferência em tempo real' }
-    ]
+    route: '/ciencia-de-dados',
   },
-  nuvem: {
+  {
     id: 'nuvem',
-    name: 'Computação em Nuvem',
-    shortName: 'Nuvem AWS',
-    code: 'CLD-60',
-    hours: 60,
-    icon: 'Cloud',
-    color: 'from-sky-500 to-blue-600',
-    tagline: 'Infraestrutura como Código, mensageria SQS, IoT Core e governança no AWS Academy',
+    title: 'Nuvem AWS',
+    discipline: 'Cloud Computing',
+    disciplineColor: 'bg-orange-500',
+    weeks: 'Semanas 7–9',
+    icon: '☁️',
+    description:
+      'Arquitetura AWS Academy com EC2, RDS PostgreSQL, SQS para buffer de mensagens e VPC com subnets públicas/privadas.',
     keyConcepts: [
-      'AWS Academy Learner Lab & Restrições LabRole',
-      'VPC Segura: Subnets Públicas/Privadas e Security Groups',
-      'AWS IoT Core & Topic Rules de Ingestão',
-      'Amazon SQS para Desacoplamento e Buffer de Picos',
-      'Infraestrutura como Código (Terraform)'
+      'AWS Academy — Restrições e créditos educacionais',
+      'EC2 t2.micro — Backend Java Spring Boot',
+      'RDS db.t3.micro — PostgreSQL para séries temporais',
+      'SQS — Buffer assíncrono para picos de telemetria',
+      'VPC — Subnets públicas e privadas',
+      'Security Groups — Regras de firewall',
     ],
-    weeksSummary: [
-      { week: 'Sem. 01-04', topic: 'Fundamentos AWS & EC2 Docker', practicalFocus: 'Máquinas virtuais, SSH, Security Groups e containers' },
-      { week: 'Sem. 05-07', topic: 'Storage, IAM & Sandbox Lab', practicalFocus: 'Governança LabRole e deploy da Fábrica Virtual na EC2' },
-      { week: 'Sem. 10-13', topic: 'Arquitetura de Rede VPC', practicalFocus: 'Subnets, rotas, Internet Gateway e defesa em profundidade' },
-      { week: 'Sem. 15-17', topic: 'ADS Factory Hub Integrado', practicalFocus: 'Provisionamento Terraform, fila SQS e banco de dados' }
-    ]
+    route: '/nuvem',
   },
-  devops: {
+  {
     id: 'devops',
-    name: 'Integração e Entrega Contínua (DevOps)',
-    shortName: 'DevOps CI/CD',
-    code: 'OPS-40',
-    hours: 40,
-    icon: 'GitBranch',
-    color: 'from-purple-500 to-indigo-600',
-    tagline: 'Cultura CALMS, automação com GitHub Actions, Docker Hub e deploy contínuo na EC2',
+    title: 'DevOps & CI/CD',
+    discipline: 'DevOps',
+    disciplineColor: 'bg-green-500',
+    weeks: 'Semanas 10–12',
+    icon: '🚀',
+    description:
+      'Cultura CALMS, GitFlow, containerização Docker, pipeline CI/CD com GitHub Actions e Conventional Commits.',
     keyConcepts: [
-      'Cultura CALMS e Gestão de Fluxo',
-      'GitFlow, Conventional Commits e SemVer',
-      'Pirâmide de Testes (Unitários, Integração e E2E)',
-      'Imagens Docker Multi-Stage Versionadas no Docker Hub',
-      'Continuous Deployment via SSH na Instância EC2'
+      'CALMS — Culture, Automation, Lean, Measurement, Sharing',
+      'GitFlow — main, develop, feature, release, hotfix',
+      'Docker — Dockerfile multi-stage, docker-compose',
+      'GitHub Actions — Workflow de CI/CD',
+      'Conventional Commits — feat, fix, chore, refactor',
+      'SemVer — Major.Minor.Patch',
     ],
-    weeksSummary: [
-      { week: 'Sem. 01-04', topic: 'CALMS, GitFlow & GitHub Actions', practicalFocus: 'Branches de feature/release, triggers e secrets' },
-      { week: 'Sem. 05-07', topic: 'Pirâmide de Testes & Quality Gates', practicalFocus: 'Pytest/JUnit, testes de integração e bloqueio de merge' },
-      { week: 'Sem. 10-13', topic: 'Docker Versionado & Docker Hub', practicalFocus: 'Dockerfile multi-stage, tags semânticas e push no Hub' },
-      { week: 'Sem. 15-17', topic: 'ADS Factory Hub Integrado', practicalFocus: 'Pipeline completo automatizado com deploy na EC2 e rollback' }
-    ]
-  }
-};
+    route: '/devops',
+  },
+  {
+    id: 'dashboard',
+    title: 'Smart N1 Dashboard',
+    discipline: 'Operational',
+    disciplineColor: 'bg-cyan-500',
+    weeks: 'Projeto Final',
+    icon: '🏭',
+    description:
+      'Dashboard operacional em tempo real integrando telemetria, OEE, alertas preditivos e status de todos os serviços.',
+    keyConcepts: [
+      'Dashboard em tempo real — Auto-refresh 10s',
+      'OEE Global — Agregação por turno',
+      'Alertas preditivos — Classificação por severidade',
+      'Gestão de máquinas — Status por linha de produção',
+      'Integração completa — IoT → Cloud → Dashboard',
+    ],
+    route: '/dashboard',
+  },
+];
 

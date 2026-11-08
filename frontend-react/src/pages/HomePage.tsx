@@ -1,234 +1,164 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Cpu, 
-  BarChart3, 
-  Cloud, 
-  GitBranch, 
-  Factory, 
-  Layers, 
-  ArrowRight,
-  Sparkles,
-  BookOpen
-} from 'lucide-react';
-import { CURRICULUM_DATA } from '../data/curriculumData';
+import { PageHeader } from '../components/common/PageHeader';
+import { StatusBadge } from '../components/common/StatusBadge';
+import { getServiceHealth } from '../services/telemetryService';
+import { curriculumData } from '../data/curriculumData';
+import { ServiceHealth } from '../types';
+
+const isaPyramid = [
+  {
+    level: 4,
+    label: 'Level 4 — Enterprise',
+    description: 'ERP / Cloud AWS',
+    mapping: 'EC2 + RDS + SQS',
+    color: 'bg-blue-700',
+    width: 'w-full',
+  },
+  {
+    level: 3,
+    label: 'Level 3 — MES',
+    description: 'Manufacturing Execution',
+    mapping: 'Backend Java Spring Boot',
+    color: 'bg-blue-600',
+    width: 'w-5/6',
+  },
+  {
+    level: 2,
+    label: 'Level 2 — SCADA',
+    description: 'Supervisory Control',
+    mapping: 'Node-RED Dashboard',
+    color: 'bg-cyan-600',
+    width: 'w-4/6',
+  },
+  {
+    level: 1,
+    label: 'Level 1 — Control',
+    description: 'PLCs / Controllers',
+    mapping: 'ESP32 Firmware',
+    color: 'bg-cyan-500',
+    width: 'w-3/6',
+  },
+  {
+    level: 0,
+    label: 'Level 0 — Field',
+    description: 'Sensors & Actuators',
+    mapping: 'DS18B20 · MPU-6050',
+    color: 'bg-cyan-400',
+    width: 'w-2/6',
+  },
+];
 
 export const HomePage: React.FC = () => {
+  const [services, setServices] = useState<ServiceHealth[]>([]);
+
+  useEffect(() => {
+    getServiceHealth().then(setServices);
+  }, []);
+
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      {/* Hero Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-sky-950/40 p-8 shadow-2xl">
-        <div className="relative z-10 max-w-3xl space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-950/60 px-3 py-1 text-xs font-semibold text-sky-400">
-            <Sparkles className="h-3.5 w-3.5" />
-            Ecossistema Integrado de Aprendizagem — Indústria 4.0
+    <div className="max-w-6xl mx-auto">
+      <PageHeader
+        icon="🏭"
+        title="Factory Hub — Célula Fabril Smart N1"
+        subtitle="Portal educacional IIoT integrado: Automação, Dados, Cloud e DevOps"
+        badge="Educational Portal"
+      />
+
+      {/* ISA-95 Pyramid */}
+      <section className="mb-10">
+        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+          <span>🏗️</span> Hierarquia ISA-95
+        </h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+          <div className="flex flex-col items-center gap-1.5">
+            {isaPyramid
+              .slice()
+              .reverse()
+              .map(tier => (
+                <div key={tier.level} className={`${tier.width} flex items-center justify-center`}>
+                  <div
+                    className={`w-full ${tier.color} text-white rounded-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 shadow-sm`}
+                  >
+                    <div>
+                      <div className="font-bold text-sm">{tier.label}</div>
+                      <div className="text-xs opacity-80">{tier.description}</div>
+                    </div>
+                    <div className="text-xs opacity-70 font-mono bg-black/20 rounded px-2 py-0.5 whitespace-nowrap">
+                      {tier.mapping}
+                    </div>
+                  </div>
+                </div>
+              ))}
           </div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-            Factory Hub: Portal & Apostila Viva
-          </h2>
-          <p className="text-base text-slate-300 leading-relaxed">
-            Este portal materializa a convergência entre <strong className="text-amber-400">Automação Industrial</strong>, <strong className="text-emerald-400">Ciência de Dados</strong>, <strong className="text-sky-400">Computação em Nuvem</strong> e <strong className="text-purple-400">DevOps</strong>. Navegue pelos módulos para estudar a teoria de cada aula ou interagir diretamente com simuladores e a telemetria da célula fabril <strong>Smart N1</strong>.
-          </p>
-          <div className="flex flex-wrap gap-3 pt-2">
+        </div>
+      </section>
+
+      {/* Module Cards */}
+      <section className="mb-10">
+        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+          <span>📚</span> Módulos do Curso
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {curriculumData.map(module => (
             <Link
-              to="/fabrica"
-              className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-sky-600/30 hover:bg-sky-500 transition-all"
+              key={module.id}
+              to={module.route}
+              className="group bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all"
             >
-              <Factory className="h-4 w-4" />
-              Acessar Fábrica Virtual Smart N1
+              <div className="flex items-start gap-3 mb-3">
+                <span className="text-3xl">{module.icon}</span>
+                <div>
+                  <span
+                    className={`text-xs font-semibold text-white px-2 py-0.5 rounded-full ${module.disciplineColor}`}
+                  >
+                    {module.discipline}
+                  </span>
+                  <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 mt-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    {module.title}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{module.weeks}</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                {module.description}
+              </p>
+              <div className="mt-3 flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 font-medium">
+                Acessar módulo <span className="group-hover:translate-x-1 transition-transform inline-block">→</span>
+              </div>
             </Link>
-            <a
-              href="#piramide"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/80 px-5 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-all"
-            >
-              <Layers className="h-4 w-4" />
-              Ver Pirâmide ISA-95
-            </a>
-          </div>
+          ))}
         </div>
-      </div>
+      </section>
 
-      {/* 4 Cards das Disciplinas */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-sky-400" />
-              Trilhas de Aprendizagem Curriculares
-            </h3>
-            <p className="text-xs text-slate-400">Cada módulo combina teoria explicativa com experimentos práticos.</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Automação Industrial */}
-          <Link
-            to="/automacao"
-            className="group rounded-2xl border border-slate-800 bg-slate-900/60 p-5 hover:border-amber-500/50 hover:bg-slate-900 transition-all shadow-md flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2.5 rounded-xl bg-amber-950/80 border border-amber-800 text-amber-400 group-hover:scale-110 transition-transform">
-                  <Cpu className="w-5 h-5" />
+      {/* System Status */}
+      <section className="mb-6">
+        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+          <span>🔌</span> Status dos Serviços
+        </h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+          {services.length === 0 ? (
+            <div className="text-sm text-gray-400 animate-pulse">Carregando status...</div>
+          ) : (
+            <div className="flex flex-wrap gap-4">
+              {services.map(svc => (
+                <div
+                  key={svc.name}
+                  className="flex flex-col items-start gap-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3 border border-gray-100 dark:border-gray-700 min-w-[160px]"
+                >
+                  <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                    {svc.name}
+                  </div>
+                  <StatusBadge status={svc.status} size="sm" />
+                  {svc.latency_ms !== undefined && (
+                    <div className="text-xs text-gray-400">{svc.latency_ms} ms</div>
+                  )}
                 </div>
-                <span className="text-[11px] font-bold text-amber-400 bg-amber-950/50 border border-amber-800/60 px-2 py-0.5 rounded-md">
-                  80 Horas
-                </span>
-              </div>
-              <h4 className="font-bold text-slate-100 text-base group-hover:text-amber-300 transition-colors">
-                {CURRICULUM_DATA.automacao.name}
-              </h4>
-              <p className="mt-2 text-xs text-slate-400 line-clamp-3">
-                {CURRICULUM_DATA.automacao.tagline}
-              </p>
+              ))}
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-amber-400">
-              <span>Abrir Módulo</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </Link>
-
-          {/* Ciência de Dados */}
-          <Link
-            to="/ciencia-de-dados"
-            className="group rounded-2xl border border-slate-800 bg-slate-900/60 p-5 hover:border-emerald-500/50 hover:bg-slate-900 transition-all shadow-md flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-800 text-emerald-400 group-hover:scale-110 transition-transform">
-                  <BarChart3 className="w-5 h-5" />
-                </div>
-                <span className="text-[11px] font-bold text-emerald-400 bg-emerald-950/50 border border-emerald-800/60 px-2 py-0.5 rounded-md">
-                  80 Horas
-                </span>
-              </div>
-              <h4 className="font-bold text-slate-100 text-base group-hover:text-emerald-300 transition-colors">
-                {CURRICULUM_DATA.cienciaDados.name}
-              </h4>
-              <p className="mt-2 text-xs text-slate-400 line-clamp-3">
-                {CURRICULUM_DATA.cienciaDados.tagline}
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-emerald-400">
-              <span>Abrir Módulo</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </Link>
-
-          {/* Computação em Nuvem */}
-          <Link
-            to="/nuvem"
-            className="group rounded-2xl border border-slate-800 bg-slate-900/60 p-5 hover:border-sky-500/50 hover:bg-slate-900 transition-all shadow-md flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2.5 rounded-xl bg-sky-950/80 border border-sky-800 text-sky-400 group-hover:scale-110 transition-transform">
-                  <Cloud className="w-5 h-5" />
-                </div>
-                <span className="text-[11px] font-bold text-sky-400 bg-sky-950/50 border border-sky-800/60 px-2 py-0.5 rounded-md">
-                  60 Horas
-                </span>
-              </div>
-              <h4 className="font-bold text-slate-100 text-base group-hover:text-sky-300 transition-colors">
-                {CURRICULUM_DATA.nuvem.name}
-              </h4>
-              <p className="mt-2 text-xs text-slate-400 line-clamp-3">
-                {CURRICULUM_DATA.nuvem.tagline}
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-sky-400">
-              <span>Abrir Módulo</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </Link>
-
-          {/* DevOps */}
-          <Link
-            to="/devops"
-            className="group rounded-2xl border border-slate-800 bg-slate-900/60 p-5 hover:border-purple-500/50 hover:bg-slate-900 transition-all shadow-md flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2.5 rounded-xl bg-purple-950/80 border border-purple-800 text-purple-400 group-hover:scale-110 transition-transform">
-                  <GitBranch className="w-5 h-5" />
-                </div>
-                <span className="text-[11px] font-bold text-purple-400 bg-purple-950/50 border border-purple-800/60 px-2 py-0.5 rounded-md">
-                  40 Horas
-                </span>
-              </div>
-              <h4 className="font-bold text-slate-100 text-base group-hover:text-purple-300 transition-colors">
-                {CURRICULUM_DATA.devops.name}
-              </h4>
-              <p className="mt-2 text-xs text-slate-400 line-clamp-3">
-                {CURRICULUM_DATA.devops.tagline}
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-purple-400">
-              <span>Abrir Módulo</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </Link>
+          )}
         </div>
-      </div>
-
-      {/* Seção Pirâmide ISA-95 Interativa */}
-      <div id="piramide" className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-6">
-        <div>
-          <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-            <Layers className="w-5 h-5 text-indigo-400" />
-            Convergência TI/TA: A Pirâmide ISA-95 no Factory Hub
-          </h3>
-          <p className="text-xs text-slate-400">
-            A arquitetura do projeto implementa cada camada do padrão internacional de automação e integração fabril:
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {/* Nível 4 */}
-          <div className="rounded-xl border border-sky-800/50 bg-sky-950/30 p-4 transition-all hover:bg-sky-950/50">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-bold text-sky-300 text-sm">Nível 4: Negócios & Planejamento (ERP / Nuvem AWS)</span>
-              <span className="text-[11px] font-mono bg-sky-900/80 text-sky-200 px-2 py-0.5 rounded">Computação em Nuvem & DevOps</span>
-            </div>
-            <p className="text-xs text-slate-300 mt-1">
-              Hospedagem em nuvem (EC2, SQS, RDS PostgreSQL), esteiras automatizadas de CI/CD (GitHub Actions) e painéis executivos em React.
-            </p>
-          </div>
-
-          {/* Nível 3 */}
-          <div className="rounded-xl border border-emerald-800/50 bg-emerald-950/30 p-4 transition-all hover:bg-emerald-950/50">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-bold text-emerald-300 text-sm">Nível 3: Operação Fabril & MES (OEE & Predição)</span>
-              <span className="text-[11px] font-mono bg-emerald-900/80 text-emerald-200 px-2 py-0.5 rounded">Ciência de Dados & Backend Java</span>
-            </div>
-            <p className="text-xs text-slate-300 mt-1">
-              Cálculo contínuo do OEE (Disponibilidade, Performance, Qualidade), detecção de anomalias com Rede Neural MLP (API Flask) e persistência consolidada.
-            </p>
-          </div>
-
-          {/* Nível 2 */}
-          <div className="rounded-xl border border-amber-800/50 bg-amber-950/30 p-4 transition-all hover:bg-amber-950/50">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-bold text-amber-300 text-sm">Nível 2: Supervisão & Controle SCADA (Node-RED)</span>
-              <span className="text-[11px] font-mono bg-amber-900/80 text-amber-200 px-2 py-0.5 rounded">Automação Industrial</span>
-            </div>
-            <p className="text-xs text-slate-300 mt-1">
-              Roteamento de fluxos via Node-RED, filtragem de histerese, supressão de alarmes falsos e publicação segura para a nuvem.
-            </p>
-          </div>
-
-          {/* Nível 0/1 */}
-          <div className="rounded-xl border border-orange-800/50 bg-orange-950/30 p-4 transition-all hover:bg-orange-950/50">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-bold text-orange-300 text-sm">Nível 0 & 1: Chão de Fábrica (Sensores, Atuadores e ESP32)</span>
-              <span className="text-[11px] font-mono bg-orange-900/80 text-orange-200 px-2 py-0.5 rounded">Automação Industrial (Wokwi)</span>
-            </div>
-            <p className="text-xs text-slate-300 mt-1">
-              Coleta de temperatura, vibração, RPM e contagem de peças boas/defeituosas com firmware em C++ simulado no Wokwi e transmitido por MQTT.
-            </p>
-          </div>
-        </div>
-      </div>
+      </section>
     </div>
   );
 };

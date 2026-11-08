@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  frontend:
+    # Build a Docker image for the React frontend (multi‑stage Dockerfile in ./frontend-react)
+    build:
+      context: ./frontend-react
+      dockerfile: Dockerfile
+    image: factoryhub-frontend:latest
+    container_name: factoryhub-frontend
+    restart: always
+    # Expose the Nginx server on host port 80 (Nginx already listens on 80 inside the image)
+    ports:
+      - "80:80"
+    # The frontend is self‑contained; it does not need extra volumes at runtime.
+    # If you add a backend later, you can declare a dependency here, e.g. "depends_on: - backend".
+

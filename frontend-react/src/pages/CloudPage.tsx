@@ -1,250 +1,295 @@
-import React, { useState } from 'react';
-import { Cloud, Server, Database, Shield, Zap, RefreshCw, DollarSign } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { PageHeader } from '../components/common/PageHeader';
+import { SectionTabs } from '../components/common/SectionTabs';
 import { TheoryBox } from '../components/common/TheoryBox';
 
+const TABS = [
+  { id: 'teoria', label: '📚 Teoria' },
+  { id: 'lab', label: '🧪 Laboratório' },
+];
+
+interface QueueMessage {
+  id: number;
+  content: string;
+  age: number;
+}
+
+let msgCounter = 0;
+function makeMsg(): QueueMessage {
+  msgCounter += 1;
+  return {
+    id: msgCounter,
+    content: `MSG-${String(msgCounter).padStart(4, '0')}`,
+    age: 0,
+  };
+}
+
 export const CloudPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'teoria' | 'laboratorio'>('teoria');
+  const [activeTab, setActiveTab] = useState('teoria');
 
-  // Simulador de Buffer SQS
-  const [queueMessages, setQueueMessages] = useState<number>(14);
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  // SQS Simulator
+  const [queue, setQueue] = useState<QueueMessage[]>([]);
+  const [processed, setProcessed] = useState(0);
+  const [animating, setAnimating] = useState(false);
 
-  const handleSimulateBurst = () => {
-    setQueueMessages(prev => prev + 25);
+  // Cost Calculator
+  const [ec2Hours, setEc2Hours] = useState(720);
+  const [rdsHours, setRdsHours] = useState(720);
+  const EC2_RATE = 0.0116; // t2.micro us-east-1
+  const RDS_RATE = 0.017;  // db.t3.micro
+  const totalCost = parseFloat((ec2Hours * EC2_RATE + rdsHours * RDS_RATE).toFixed(2));
+  const budget = 100;
+  const remaining = parseFloat((budget - totalCost).toFixed(2));
+
+  const burstMessages = () => {
+    const newMsgs = Array.from({ length: 10 }, makeMsg);
+    setQueue(prev => [...prev, ...newMsgs].slice(0, 50));
   };
 
-  const handleBatchConsume = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      setQueueMessages(prev => Math.max(0, prev - 10));
-      setIsProcessing(false);
-    }, 400);
+  const consumeBatch = () => {
+    if (animating) return;
+    setAnimating(true);
+    setQueue(prev => {
+      const batch = prev.slice(0, 5);
+      setProcessed(p => p + batch.length);
+      return prev.slice(5);
+    });
+    setTimeout(() => setAnimating(false), 500);
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header com Navegação de Abas */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Cloud className="w-6 h-6 text-sky-400" />
-            <h2 className="text-2xl font-bold text-white">Computação em Nuvem (AWS Academy)</h2>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            VPC, mensageria assíncrona SQS, IoT Core, Terraform e governança no AWS Learner Lab.
-          </p>
-        </div>
+    <div className="max-w-5xl mx-auto">
+      <PageHeader
+        icon="☁️"
+        title="Nuvem AWS"
+        subtitle="EC2 · RDS · SQS · VPC · AWS Academy"
+        badge="Semanas 7–9"
+        badgeColor="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+      />
 
-        <div className="flex rounded-xl bg-slate-900 p-1 border border-slate-800">
-          <button
-            onClick={() => setActiveTab('teoria')}
-            className={`rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
-              activeTab === 'teoria'
-                ? 'bg-sky-500 text-slate-950 shadow-md font-bold'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            📚 Apostila & Conceitos
-          </button>
-          <button
-            onClick={() => setActiveTab('laboratorio')}
-            className={`rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
-              activeTab === 'laboratorio'
-                ? 'bg-sky-500 text-slate-950 shadow-md font-bold'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            🧪 Topologia AWS & Fila SQS
-          </button>
-        </div>
-      </div>
+      <SectionTabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
 
-      {activeTab === 'teoria' ? (
-        /* CONTEÚDO TEÓRICO */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <TheoryBox
-            discipline="Computação em Nuvem"
-            week="Semana 02 a 05"
-            title="AWS Academy Learner Lab: Governança e LabRole"
-            type="warning"
-          >
-            <p className="mb-2">
-              No ambiente educacional da AWS, existem restrições estritas de IAM:
-            </p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>
-                <strong>Sem criação de IAM Roles:</strong> O comando <code>iam:CreateRole</code> é bloqueado. É obrigatório reaproveitar a <code>LabRole</code> nativa.
-              </li>
-              <li>
-                <strong>Orçamento de $100:</strong> Recursos ociosos ou de alto custo contínuo (como NAT Gateways e AWS Timestream) esgotam os créditos e desligam a conta.
-              </li>
-              <li>
-                <strong>Credenciais de Sessão Temporárias:</strong> O token AWS STS expira a cada 4 horas no console.
-              </li>
-            </ul>
-          </TheoryBox>
-
-          <TheoryBox
-            discipline="Computação em Nuvem"
-            week="Semana 10 a 13"
-            title="Arquitetura de Rede VPC & Isolamento de Segurança"
-          >
-            <p className="mb-2">
-              Segurança em profundidade para a célula fabril na AWS:
-            </p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li><strong>VPC Dedicada (10.0.0.0/16):</strong> Isolamento completo de tráfego de rede.</li>
-              <li><strong>Subnet Pública (10.0.1.0/24):</strong> Hospeda a instância EC2 com Internet Gateway.</li>
-              <li><strong>Security Groups Restritivos:</strong> Acesso SSH (porta 22) e Web (portas 80/443/8080/5000) com regras de entrada específicas.</li>
-              <li><strong>RDS Isolado:</strong> O banco PostgreSQL escuta na porta 5432 aceitando conexões unicamente da subnet ou Security Group da EC2.</li>
-            </ul>
-          </TheoryBox>
-
-          <TheoryBox
-            discipline="Computação em Nuvem"
-            week="Semana 15 a 17"
-            title="Desacoplamento e Buffer de Picos com Amazon SQS"
-          >
-            <p className="mb-2">
-              Por que não salvar diretamente no banco de dados a partir do IoT Core?
-            </p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li><strong>Absorção de Rajadas (Bursts):</strong> Se 50 dispositivos transmitirem ao mesmo tempo, o banco de dados não trava por esgotamento de conexões.</li>
-              <li><strong>Resiliência:</strong> Se o backend Java reiniciar para atualização, as mensagens aguardam na fila SQS sem perda.</li>
-              <li><strong>DLQ (Dead Letter Queue):</strong> Mensagens mal formatadas que falham após 3 tentativas são isoladas para inspeção.</li>
-            </ul>
-          </TheoryBox>
-
-          <TheoryBox
-            discipline="Computação em Nuvem"
-            week="Semana 14 a 17"
-            title="Infraestrutura como Código (Terraform)"
-            type="tip"
-          >
-            <p className="mb-2">
-              Toda a topologia foi codificada de forma declarativa:
-            </p>
-            <div className="rounded bg-slate-950 p-2 font-mono text-xs text-sky-300">
-              terraform init<br/>
-              terraform plan -out=tfplan<br/>
-              terraform apply tfplan
+      {activeTab === 'teoria' && (
+        <div className="space-y-6">
+          {/* AWS Academy Restrictions */}
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">🎓 AWS Academy — Restrições e Recursos</h2>
+            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+              <table className="w-full text-sm bg-white dark:bg-gray-800">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                    <th className="px-4 py-3 text-left font-semibold">Serviço</th>
+                    <th className="px-4 py-3 text-left font-semibold">Recurso Utilizado</th>
+                    <th className="px-4 py-3 text-left font-semibold">Restrição Academy</th>
+                    <th className="px-4 py-3 text-left font-semibold">Custo/h (us-east-1)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {[
+                    ['EC2', 't2.micro', 'Sem GPU, sem instances reservadas', '$0.0116'],
+                    ['RDS', 'db.t3.micro PostgreSQL', 'Single-AZ apenas, sem Multi-AZ', '$0.017'],
+                    ['SQS', 'Standard Queue', 'Sem FIFO em Academy básico', '$0.00/1M msgs'],
+                    ['VPC', '1 VPC, 2 subnets', 'Sem Transit Gateway', 'Gratuito'],
+                    ['S3', 'Bucket padrão', 'Sem Intelligent-Tiering', '$0.023/GB'],
+                  ].map(([svc, res, rest, cost]) => (
+                    <tr key={svc} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <td className="px-4 py-3 font-bold text-orange-500">{svc}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{res}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{rest}</td>
+                      <td className="px-4 py-3 font-mono text-green-600 dark:text-green-400 text-xs">{cost}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <p className="mt-2 text-xs text-slate-400">
-              Permite destruir e recriar o ambiente no AWS Academy em menos de 5 minutos, garantindo total reprodutibilidade.
-            </p>
-          </TheoryBox>
-        </div>
-      ) : (
-        /* LABORATÓRIO INTERATIVO */
-        <div className="space-y-8">
-          {/* Topologia AWS Interativa */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
-            <h3 className="text-base font-bold text-white mb-4 flex items-center gap-2">
-              <Server className="w-5 h-5 text-sky-400" />
-              Topologia dos Serviços Provisionados (AWS Academy)
-            </h3>
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* IoT Core */}
-              <div className="rounded-xl border border-sky-800/60 bg-sky-950/30 p-4">
-                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                  <span className="font-semibold text-sky-300">AWS IoT Core</span>
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          {/* VPC Topology */}
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">🌐 Topologia VPC — Factory Hub</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm font-mono text-xs">
+              <div className="border-2 border-blue-400 rounded-xl p-4">
+                <div className="text-blue-500 font-bold mb-3">🌐 VPC: 10.0.0.0/16 (factory-hub-vpc)</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="border border-green-400 rounded-lg p-3">
+                    <div className="text-green-500 font-bold mb-2">🌍 Public Subnet: 10.0.1.0/24</div>
+                    <div className="space-y-1 text-gray-500 dark:text-gray-400">
+                      <div className="bg-green-50 dark:bg-green-900/20 rounded px-2 py-1">
+                        📦 EC2 t2.micro (Backend Java :8080)
+                      </div>
+                      <div className="bg-green-50 dark:bg-green-900/20 rounded px-2 py-1">
+                        🤖 EC2 t2.micro (Flask AI :5000)
+                      </div>
+                      <div className="bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1">
+                        🔀 Internet Gateway
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border border-red-400 rounded-lg p-3">
+                    <div className="text-red-500 font-bold mb-2">🔒 Private Subnet: 10.0.2.0/24</div>
+                    <div className="space-y-1 text-gray-500 dark:text-gray-400">
+                      <div className="bg-red-50 dark:bg-red-900/20 rounded px-2 py-1">
+                        🗄️ RDS db.t3.micro PostgreSQL :5432
+                      </div>
+                      <div className="bg-orange-50 dark:bg-orange-900/20 rounded px-2 py-1">
+                        📬 SQS Queue (Telemetry Buffer)
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-sm font-bold text-white">MQTT Broker</div>
-                <p className="text-[11px] text-slate-400 mt-1">Topic Rule: 'industria/smartn1/#'</p>
-                <div className="mt-3 text-[10px] font-mono text-sky-400 bg-sky-950 p-1.5 rounded">
-                  Ação: Roteia p/ SQS
-                </div>
-              </div>
-
-              {/* SQS Queue */}
-              <div className="rounded-xl border border-purple-800/60 bg-purple-950/30 p-4">
-                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                  <span className="font-semibold text-purple-300">Amazon SQS</span>
-                  <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
-                </div>
-                <div className="text-sm font-bold text-white">Fila de Buffer</div>
-                <p className="text-[11px] text-slate-400 mt-1">factoryhub-telemetria-queue</p>
-                <div className="mt-3 text-[10px] font-mono text-purple-400 bg-purple-950 p-1.5 rounded">
-                  Mensagens na Fila: {queueMessages}
-                </div>
-              </div>
-
-              {/* EC2 Docker Host */}
-              <div className="rounded-xl border border-emerald-800/60 bg-emerald-950/30 p-4">
-                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                  <span className="font-semibold text-emerald-300">EC2 Linux</span>
-                  <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
-                </div>
-                <div className="text-sm font-bold text-white">t3.small (Docker)</div>
-                <p className="text-[11px] text-slate-400 mt-1">IAM: LabRole Associada</p>
-                <div className="mt-3 text-[10px] font-mono text-emerald-400 bg-emerald-950 p-1.5 rounded">
-                  Containers: 4 Ativos
-                </div>
-              </div>
-
-              {/* RDS PostgreSQL */}
-              <div className="rounded-xl border border-amber-800/60 bg-amber-950/30 p-4">
-                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                  <span className="font-semibold text-amber-300">RDS PostgreSQL</span>
-                  <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
-                </div>
-                <div className="text-sm font-bold text-white">db.t3.micro</div>
-                <p className="text-[11px] text-slate-400 mt-1">Free Tier Elegível</p>
-                <div className="mt-3 text-[10px] font-mono text-amber-400 bg-amber-950 p-1.5 rounded">
-                  Porta 5432 (Privada)
+                <div className="mt-3 text-gray-400 text-center">
+                  ↕ Security Groups: sg-backend (8080), sg-ai (5000), sg-db (5432)
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Simulador Interativo do Buffer SQS */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-3 mb-5">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-amber-400" />
-                  Simulador de Absorção de Rajadas (Amazon SQS + Java Consumer)
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Observe como a fila absorve picos momentâneos enquanto o backend consome em lotes controlados.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleSimulateBurst}
-                  className="rounded-lg border border-amber-700 bg-amber-950/80 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-900 transition-all flex items-center gap-1.5"
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                  Injetar Rajada (+25 msgs)
-                </button>
-                <button
-                  onClick={handleBatchConsume}
-                  disabled={isProcessing || queueMessages === 0}
-                  className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-500 transition-all disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
-                  Consumir Lote (-10 msgs)
-                </button>
-              </div>
+          {/* SQS Comparison */}
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">📬 SQS — Assíncrono vs Síncrono</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TheoryBox type="warning" title="❌ Sem SQS — Acoplamento Síncrono">
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>ESP32 → Backend diretamente via HTTP POST</li>
+                  <li>Se Backend cair, perde dados de telemetria</li>
+                  <li>Picos de tráfego derrubam o RDS</li>
+                  <li>Não há retry automático em falhas</li>
+                </ul>
+              </TheoryBox>
+              <TheoryBox type="example" title="✅ Com SQS — Buffer Assíncrono">
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>ESP32 → MQTT Broker → SQS (buffer)</li>
+                  <li>Backend consome em batches de 10 msgs</li>
+                  <li>Resiliente: mensagens persistem 4 dias</li>
+                  <li>Escala automaticamente em picos de produção</li>
+                </ul>
+              </TheoryBox>
             </div>
+          </div>
+        </div>
+      )}
 
-            <div className="space-y-3">
-              <div className="flex justify-between text-xs text-slate-300">
-                <span>Capacidade Atual do Buffer (Fila SQS):</span>
-                <strong className="font-mono text-amber-400">{queueMessages} mensagens pendentes</strong>
+      {activeTab === 'lab' && (
+        <div className="space-y-6">
+          {/* SQS Simulator */}
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">📬 Simulador SQS</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+              <div className="flex items-center gap-4 mb-5 flex-wrap">
+                <button
+                  onClick={burstMessages}
+                  className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors"
+                >
+                  ⚡ Burst (+10 msgs)
+                </button>
+                <button
+                  onClick={consumeBatch}
+                  disabled={queue.length === 0 || animating}
+                  className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+                >
+                  ▶ Consume Batch (5)
+                </button>
+                <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                  <span>Queue: <strong className="text-gray-800 dark:text-gray-200">{queue.length}</strong> msgs</span>
+                  <span>Processed: <strong className="text-green-600 dark:text-green-400">{processed}</strong></span>
+                </div>
               </div>
-              <div className="w-full bg-slate-950 rounded-full h-4 p-0.5 border border-slate-800">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500 transition-all duration-300"
-                  style={{ width: `${Math.min((queueMessages / 50) * 100, 100)}%` }}
-                ></div>
+
+              {/* Queue visualization */}
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 min-h-24">
+                <div className="text-xs text-gray-400 mb-3 font-semibold">SQS Queue — factory-hub-telemetry</div>
+                {queue.length === 0 ? (
+                  <div className="flex items-center justify-center h-16 text-gray-400 text-sm">
+                    Queue vazia
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {queue.map((msg, idx) => (
+                      <div
+                        key={msg.id}
+                        className={`px-2 py-1 rounded text-xs font-mono font-bold border transition-all ${
+                          idx < 5
+                            ? 'bg-green-100 dark:bg-green-900/30 border-green-400 text-green-700 dark:text-green-300'
+                            : 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 text-blue-700 dark:text-blue-300'
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <p className="text-[11px] text-slate-500">
-                O consumidor Java `@SqsListener` busca lotes de até 10 mensagens por requisição longa (Long Polling de 20s).
+              <p className="text-xs text-gray-400 mt-2">
+                🟢 Verde = próximo batch a consumir | 🔵 Azul = aguardando na fila
               </p>
+            </div>
+          </div>
+
+          {/* Cost Calculator */}
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">💰 Calculadora de Custos AWS</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-5">
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600 dark:text-gray-400">EC2 t2.micro (horas)</span>
+                      <span className="font-bold text-gray-800 dark:text-gray-200">{ec2Hours}h</span>
+                    </div>
+                    <input
+                      type="range" min={0} max={744} value={ec2Hours}
+                      onChange={e => setEc2Hours(Number(e.target.value))}
+                      className="w-full h-2 rounded-full accent-orange-500"
+                    />
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      Custo: ${(ec2Hours * EC2_RATE).toFixed(2)} (@ $0.0116/h)
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600 dark:text-gray-400">RDS db.t3.micro (horas)</span>
+                      <span className="font-bold text-gray-800 dark:text-gray-200">{rdsHours}h</span>
+                    </div>
+                    <input
+                      type="range" min={0} max={744} value={rdsHours}
+                      onChange={e => setRdsHours(Number(e.target.value))}
+                      className="w-full h-2 rounded-full accent-blue-500"
+                    />
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      Custo: ${(rdsHours * RDS_RATE).toFixed(2)} (@ $0.017/h)
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 flex flex-col justify-center gap-3">
+                  <div className="text-sm text-gray-500 dark:text-gray-400 font-semibold">Resumo de Custos</div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Total estimado:</span>
+                    <span className="font-bold text-2xl text-gray-800 dark:text-gray-200">${totalCost}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Budget Academy:</span>
+                    <span className="font-bold text-gray-700 dark:text-gray-300">${budget}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Saldo restante:</span>
+                    <span className={`font-bold ${remaining >= 20 ? 'text-green-600 dark:text-green-400' : remaining >= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+                      ${remaining}
+                    </span>
+                  </div>
+                  <div className="mt-1">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                      <div
+                        className={`h-3 rounded-full transition-all ${totalCost / budget > 0.9 ? 'bg-red-500' : totalCost / budget > 0.7 ? 'bg-amber-500' : 'bg-green-500'}`}
+                        style={{ width: `${Math.min(100, (totalCost / budget) * 100)}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1 text-center">
+                      {((totalCost / budget) * 100).toFixed(0)}% do budget utilizado
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

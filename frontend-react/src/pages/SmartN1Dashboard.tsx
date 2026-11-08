@@ -1,224 +1,279 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Factory, 
-  Activity, 
-  AlertTriangle, 
-  CheckCircle, 
-  Cpu, 
-  TrendingUp, 
-  Clock, 
-  RefreshCw,
-  Sparkles
-} from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { PageHeader } from '../components/common/PageHeader';
 import { MetricCard } from '../components/common/MetricCard';
+import { StatusBadge } from '../components/common/StatusBadge';
+import { TelemetryLineChart } from '../components/charts/TelemetryLineChart';
+import { OeeGaugeChart } from '../components/charts/OeeGaugeChart';
+import {
+  getMaquinas,
+  getTelemetria,
+  getOeeIndicators,
+  getAlertas,
+} from '../services/telemetryService';
+import { Machine, TelemetryReading, OeeIndicators, Alert } from '../types';
 
-interface TelemetryPoint {
-  time: string;
-  temp: number;
-  vib: number;
-  rpm: number;
-}
+const SEVERITY_ROW: Record<Alert['severidade'], string> = {
+  LOW: 'bg-gray-50 dark:bg-gray-900/40',
+  MEDIUM: 'bg-amber-50 dark:bg-amber-900/10',
+  HIGH: 'bg-orange-50 dark:bg-orange-900/10',
+  CRITICAL: 'bg-red-50 dark:bg-red-900/10',
+};
+
+const SEVERITY_BADGE: Record<Alert['severidade'], string> = {
+  LOW: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+  MEDIUM: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+  HIGH: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+  CRITICAL: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+};
 
 export const SmartN1Dashboard: React.FC = () => {
-  const [dataPoints, setDataPoints] = useState<TelemetryPoint[]>([
-    { time: '10:00', temp: 68.2, vib: 2.1, rpm: 3480 },
-    { time: '10:05', temp: 69.1, vib: 2.3, rpm: 3490 },
-    { time: '10:10', temp: 70.4, vib: 2.2, rpm: 3470 },
-    { time: '10:15', temp: 72.8, vib: 2.5, rpm: 3450 },
-    { time: '10:20', temp: 71.9, vib: 2.4, rpm: 3460 },
-    { time: '10:25', temp: 73.5, vib: 2.6, rpm: 3480 },
-    { time: '10:30', temp: 74.2, vib: 2.8, rpm: 3490 },
-  ]);
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [oee, setOee] = useState<OeeIndicators | null>(null);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [telemetry, setTelemetry] = useState<TelemetryReading[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<string>('esp32-torno-01');
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  const [currentTemp, setCurrentTemp] = useState<number>(74.2);
-  const [currentVib, setCurrentVib] = useState<number>(2.8);
-  const [lastUpdate, setLastUpdate] = useState<string>(new Date().toLocaleTimeString());
-
-  // Simulação de telemetria contínua a cada 5 segundos
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      // Adiciona leve ruído gaussiano simulando sensor real
-      const newTemp = +(70 + Math.sin(Date.now() / 10000) * 6 + (Math.random() - 0.5) * 1.5).toFixed(1);
-      const newVib = +(2.2 + (Math.random() - 0.5) * 0.8).toFixed(2);
-      const newRpm = Math.floor(3450 + (Math.random() - 0.5) * 60);
-
-      setCurrentTemp(newTemp);
-      setCurrentVib(newVib);
-      setLastUpdate(now);
-
-      setDataPoints(prev => [
-        ...prev.slice(1),
-        { time: now, temp: newTemp, vib: newVib, rpm: newRpm }
-      ]);
-    }, 4000);
-
-    return () => clearInterval(interval);
+  const fetchAll = useCallback(async () => {
+    const [m, o, a] = await Promise.all([
+      getMaquinas(),
+      getOeeIndicators('all', 'today'),
+      getAlertas(),
+    ]);
+    setMachines(m);
+    setOee(o);
+    setAlerts(a);
+    setLastRefresh(new Date());
   }, []);
 
+  const fetchTelemetry = useCallback(async (deviceId: string) => {
+    const t = await getTelemetria(deviceId);
+    setTelemetry(t);
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+    const interval = setInterval(fetchAll, 10000);
+    return () => clearInterval(interval);
+  }, [fetchAll]);
+
+  useEffect(() => {
+    fetchTelemetry(selectedDevice);
+  }, [selectedDevice, fetchTelemetry]);
+
+  // KPI computations
+  const avgTemp = machines.length
+    ? parseFloat(
+        (machines.reduce((acc, m) => acc + m.ultima_leitura.temperatura, 0) / machines.length).toFixed(1)
+      )
+    : 0;
+
+  const totalPecas = machines.reduce((acc, m) => acc + m.ultima_leitura.pecas_produzidas, 0);
+  const totalDefeitos = machines.reduce((acc, m) => acc + m.ultima_leitura.pecas_defeito, 0);
+  const taxaRefugo =
+    totalPecas > 0 ? parseFloat(((totalDefeitos / totalPecas) * 100).toFixed(2)) : 0;
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header Executivo */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Factory className="w-6 h-6 text-rose-400" />
-            <h2 className="text-2xl font-bold text-white">Célula Fabril Smart N1 — Dashboard Integrado</h2>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Monitoramento de chão de fábrica unificando telemetria OT, predição de IA, consolidações em nuvem e saúde dos containers.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-1.5 text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg font-mono">
-            <Clock className="w-3.5 h-3.5 text-sky-400" />
-            <span>Última sincronização: {lastUpdate}</span>
-          </div>
-          <span className="flex items-center gap-1.5 text-emerald-400 font-semibold bg-emerald-950/60 border border-emerald-800 px-3 py-1.5 rounded-lg">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Chão de Fábrica Online
-          </span>
+    <div className="max-w-6xl mx-auto">
+      <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
+        <PageHeader
+          icon="🏭"
+          title="Smart N1 Dashboard"
+          subtitle="Monitoramento operacional em tempo real · Célula Fabril"
+          badge="LIVE"
+          badgeColor="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+        />
+        <div className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-right">
+          <div>Auto-refresh: 10s</div>
+          <div>Atualizado: {lastRefresh.toLocaleTimeString('pt-BR')}</div>
         </div>
       </div>
 
-      {/* 4 Cards de Métricas Principais (OEE e Produção) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <MetricCard
-          label="OEE Geral da Célula"
-          value="84.6"
+          title="OEE Global"
+          value={oee?.oee ?? 0}
           unit="%"
-          sublabel="Meta Classe Mundial: ≥ 85%"
-          trend="up"
-          trendValue="+1.8%"
-          status="normal"
-          icon={<TrendingUp className="w-4 h-4 text-emerald-400" />}
+          trend={1.4}
+          colorVariant={
+            (oee?.oee ?? 0) >= 85 ? 'success' : (oee?.oee ?? 0) >= 65 ? 'warning' : 'danger'
+          }
+          icon={<span className="text-xl">📊</span>}
         />
         <MetricCard
-          label="Disponibilidade Média"
-          value="91.2"
-          unit="%"
-          sublabel="Paradas não programadas: 18 min"
-          trend="neutral"
-          trendValue="0.0%"
-          status="normal"
-          icon={<Activity className="w-4 h-4 text-sky-400" />}
+          title="Peças Hoje"
+          value={totalPecas * 48}
+          unit="pcs"
+          trend={3.2}
+          colorVariant="default"
+          icon={<span className="text-xl">🔧</span>}
         />
         <MetricCard
-          label="Temperatura Torno CNC-01"
-          value={currentTemp}
+          title="Taxa de Refugo"
+          value={taxaRefugo}
+          unit="%"
+          trend={-0.3}
+          colorVariant={taxaRefugo > 2 ? 'danger' : taxaRefugo > 1 ? 'warning' : 'success'}
+          icon={<span className="text-xl">🗑️</span>}
+        />
+        <MetricCard
+          title="Temp. Média"
+          value={avgTemp}
           unit="°C"
-          sublabel="Faixa aceitável: 60-78°C"
-          trend={currentTemp > 75 ? 'up' : 'neutral'}
-          trendValue={currentTemp > 75 ? 'Atenção' : 'Estável'}
-          status={currentTemp > 78 ? 'warning' : 'normal'}
-          icon={<Cpu className="w-4 h-4 text-amber-400" />}
-        />
-        <MetricCard
-          label="Diagnóstico de IA (MLP)"
-          value="Normal"
-          unit=""
-          sublabel="Probabilidade de falha: 14.2%"
-          status="normal"
-          icon={<Sparkles className="w-4 h-4 text-purple-400" />}
+          colorVariant={avgTemp > 90 ? 'danger' : avgTemp > 80 ? 'warning' : 'default'}
+          icon={<span className="text-xl">🌡️</span>}
         />
       </div>
 
-      {/* Gráficos de Telemetria Temporal e Alertas */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Painel de Telemetria Dinâmica */}
-        <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Activity className="w-5 h-5 text-sky-400" />
-                Telemetria Contínua da Máquina (Últimas Leituras)
-              </h3>
-              <p className="text-xs text-slate-400">Dados ingeridos via AWS IoT Core e consumidos pelo Backend Java.</p>
-            </div>
-            <span className="text-[11px] font-mono text-slate-400 bg-slate-950 px-2 py-1 rounded border border-slate-800">
-              Dispositivo: esp32-torno-01
-            </span>
-          </div>
-
-          {/* Gráfico Simplificado em Barras SVG */}
-          <div className="h-52 w-full pt-4 flex items-end justify-between gap-2 border-b border-slate-800 pb-2">
-            {dataPoints.map((pt, idx) => {
-              const heightPercent = Math.min(Math.max(((pt.temp - 50) / 50) * 100, 10), 100);
-              return (
-                <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
-                  <span className="text-[10px] font-mono text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {pt.temp}°C
-                  </span>
-                  <div
-                    className={`w-full rounded-t-md transition-all duration-500 ${
-                      pt.temp > 75 ? 'bg-amber-500' : 'bg-sky-500'
-                    }`}
-                    style={{ height: `${heightPercent}%` }}
-                  ></div>
-                  <span className="text-[9px] text-slate-500 font-mono">{pt.time}</span>
+      {/* OEE Gauge + Machine Status */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        {/* OEE Gauge */}
+        {oee && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm flex flex-col items-center gap-3">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 self-start">OEE por Componente</h3>
+            <OeeGaugeChart oee={oee.oee} size={160} />
+            <div className="w-full space-y-2 text-xs">
+              {[
+                { label: 'Disponibilidade', value: oee.disponibilidade, color: 'bg-blue-500' },
+                { label: 'Performance', value: oee.performance, color: 'bg-cyan-500' },
+                { label: 'Qualidade', value: oee.qualidade, color: 'bg-green-500' },
+              ].map(({ label, value, color }) => (
+                <div key={label}>
+                  <div className="flex justify-between mb-0.5">
+                    <span className="text-gray-500 dark:text-gray-400">{label}</span>
+                    <span className="font-bold text-gray-700 dark:text-gray-300">{value}%</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full">
+                    <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${value}%` }} />
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded bg-sky-500"></span>
-                <span>Temperatura (°C)</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded bg-amber-500"></span>
-                <span>Zona de Alerta (&gt; 75°C)</span>
-              </span>
+              ))}
             </div>
-            <span className="text-[11px] text-slate-500 font-mono">Taxa de amostragem: 4s</span>
           </div>
+        )}
+
+        {/* Machine Status Cards */}
+        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {machines.map(machine => (
+            <div
+              key={machine.device_id}
+              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <div className="font-bold text-sm text-gray-800 dark:text-gray-200">{machine.nome}</div>
+                  <div className="text-xs text-gray-400">{machine.linha}</div>
+                </div>
+                <StatusBadge status={machine.status} size="sm" />
+              </div>
+              <div className="space-y-1.5 text-xs font-mono">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Temp</span>
+                  <span className={`font-bold ${machine.ultima_leitura.temperatura > 85 ? 'text-red-500' : machine.ultima_leitura.temperatura > 75 ? 'text-amber-500' : 'text-green-500'}`}>
+                    {machine.ultima_leitura.temperatura}°C
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Vibração</span>
+                  <span className={`font-bold ${machine.ultima_leitura.vibracao > 6 ? 'text-red-500' : machine.ultima_leitura.vibracao > 4 ? 'text-amber-500' : 'text-green-500'}`}>
+                    {machine.ultima_leitura.vibracao} mm/s
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">RPM</span>
+                  <span className="font-bold text-gray-700 dark:text-gray-300">
+                    {machine.ultima_leitura.rpm}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
+      </div>
 
-        {/* Tabela de Alertas Preditivos & Status das Máquinas */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-400" />
-              Alertas & Manutenção
-            </h3>
-            <span className="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-2 py-0.5 rounded font-bold">
-              1 Pendente
-            </span>
-          </div>
+      {/* Telemetry Chart */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <h2 className="text-base font-bold text-gray-800 dark:text-gray-200">📈 Telemetria em Tempo Real</h2>
+          <select
+            value={selectedDevice}
+            onChange={e => setSelectedDevice(e.target.value)}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {machines.map(m => (
+              <option key={m.device_id} value={m.device_id}>{m.nome}</option>
+            ))}
+          </select>
+        </div>
+        <TelemetryLineChart data={telemetry} title={`${machines.find(m => m.device_id === selectedDevice)?.nome ?? selectedDevice} — últimos 30 min`} />
+      </div>
 
-          <div className="space-y-3">
-            <div className="rounded-xl border border-amber-800/60 bg-amber-950/20 p-3">
-              <div className="flex items-center justify-between text-xs font-bold text-amber-300">
-                <span>Torno CNC-01 (Mancal)</span>
-                <span className="text-[10px] font-mono text-amber-400">10:28</span>
-              </div>
-              <p className="text-xs text-slate-300 mt-1">
-                Elevação gradual de vibração ({currentVib} mm/s). Rede Neural sugere re-lubrificação preventiva no próximo intervalo.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                <span>Fresadora CNC-02</span>
-                <span className="text-[10px] font-mono text-emerald-400">OPERACIONAL</span>
-              </div>
-              <p className="text-xs text-slate-400 mt-1">
-                Todas as medições dentro da normalidade. OEE em 88.3%.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                <span>Injetora Plástica-03</span>
-                <span className="text-[10px] font-mono text-emerald-400">OPERACIONAL</span>
-              </div>
-              <p className="text-xs text-slate-400 mt-1">
-                Ciclo de injeção estável (42 s/ciclo). Qualidade em 98.7%.
-              </p>
-            </div>
+      {/* Alerts Table */}
+      <div>
+        <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">🚨 Alertas Preditivos</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                  <th className="px-4 py-3 text-left font-semibold">Máquina</th>
+                  <th className="px-4 py-3 text-left font-semibold">Horário</th>
+                  <th className="px-4 py-3 text-left font-semibold">Risco</th>
+                  <th className="px-4 py-3 text-left font-semibold">Status</th>
+                  <th className="px-4 py-3 text-left font-semibold">Severidade</th>
+                  <th className="px-4 py-3 text-left font-semibold">Recomendação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {alerts.map(alert => (
+                  <tr
+                    key={alert.id}
+                    className={`${SEVERITY_ROW[alert.severidade]} hover:opacity-90 transition-opacity`}
+                  >
+                    <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+                      {alert.device_id}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                      {new Date(alert.timestamp).toLocaleTimeString('pt-BR')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full ${
+                              alert.probabilidade_falha > 75
+                                ? 'bg-red-500'
+                                : alert.probabilidade_falha > 40
+                                ? 'bg-amber-500'
+                                : 'bg-green-500'
+                            }`}
+                            style={{ width: `${alert.probabilidade_falha}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                          {alert.probabilidade_falha}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge
+                        status={alert.status_previsto as 'OPERATIONAL' | 'WARNING' | 'CRITICAL'}
+                        size="sm"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${SEVERITY_BADGE[alert.severidade]}`}>
+                        {alert.severidade}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 max-w-xs">
+                      {alert.recomendacao}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
