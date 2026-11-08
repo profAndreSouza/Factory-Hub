@@ -1,6 +1,6 @@
 resource "aws_security_group" "app" {
   name        = "${var.name_prefix}-app"
-  description = "Frontend HTTP e InfluxDB acessível apenas pela Lambda; sem SSH."
+  description = "Frontend HTTP and InfluxDB accessible only from Lambda; no SSH."
   vpc_id      = aws_vpc.factoryhub.id
 
   ingress {
@@ -24,7 +24,7 @@ resource "aws_security_group" "app" {
 
 resource "aws_security_group" "lambda" {
   name        = "${var.name_prefix}-lambda"
-  description = "Conectividade da função de ingestão à EC2/InfluxDB e ao endpoint de logs."
+  description = "Telemetry Lambda connectivity to EC2 InfluxDB and the logs endpoint."
   vpc_id      = aws_vpc.factoryhub.id
 
   tags = { Name = "${var.name_prefix}-lambda" }
@@ -47,7 +47,7 @@ resource "aws_security_group" "logs_endpoint" {
 
 resource "aws_security_group" "database" {
   name        = "${var.name_prefix}-database"
-  description = "PostgreSQL acessível apenas pela EC2 da aplicação."
+  description = "PostgreSQL accessible only from the application EC2."
   vpc_id      = aws_vpc.factoryhub.id
 
   egress {
@@ -99,7 +99,7 @@ resource "aws_vpc_security_group_ingress_rule" "logs_from_lambda" {
 resource "aws_vpc_security_group_ingress_rule" "database_from_app" {
   security_group_id            = aws_security_group.database.id
   referenced_security_group_id = aws_security_group.app.id
-  description                  = "PostgreSQL acessível apenas pela EC2."
+  description                  = "PostgreSQL accessible only from EC2."
   from_port                    = 5432
   to_port                      = 5432
   ip_protocol                  = "tcp"
