@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   frontend:
     # Build a Docker image for the React frontend (multi‑stage Dockerfile in ./frontend-react)

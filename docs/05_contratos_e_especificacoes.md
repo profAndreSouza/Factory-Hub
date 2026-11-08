@@ -110,6 +110,28 @@
 
 ---
 
+### 3.3. Proxy de Inferência: `POST /api/v1/predicoes`
+O navegador envia a solicitação somente ao backend Java. O backend valida o payload, chama internamente o serviço Flask (`POST /predict`) e devolve a resposta ao frontend. O endereço do Flask não deve ser exposto nem configurado no bundle do navegador.
+
+**Requisição:** mesmo formato do contrato Flask, com `device_id`, `temperatura`, `vibracao` e `rpm`.
+
+**Resposta:** mesmo formato da resposta Flask, incluindo `status_previsto`, `probabilidade_falha`, `recomendacao` e `modelo_versao`.
+
+### 3.4. Saúde dos Serviços: `GET /api/v1/health`
+O backend agrega o estado dos componentes e fornece a lista exibida pelo frontend. Inclua pelo menos nome, estado e, quando disponível, latência. O backend é a única fonte do estado do Flask, banco, broker e demais serviços.
+
+```json
+{
+  "services": [
+    { "name": "Backend Java", "status": "UP", "latency_ms": 12 },
+    { "name": "Flask AI", "status": "DEGRADED", "latency_ms": 310 },
+    { "name": "PostgreSQL", "status": "UP", "latency_ms": 8 }
+  ]
+}
+```
+
+Estados esperados: `UP`/`ONLINE`, `DEGRADED` e `DOWN`/`OFFLINE`. O frontend normaliza esses nomes para apresentação, sem gerar verificações de saúde locais.
+
 ## 4. Esquema de Banco de Dados (RDS PostgreSQL)
 
 ```sql

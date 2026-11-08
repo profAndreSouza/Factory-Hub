@@ -161,6 +161,10 @@ export const DevopsPage: React.FC = () => {
                 </div>
               ))}
             </div>
+            <figure className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+              <img src="/assets/lessons/devops-calms.jpg" alt="Ilustração do modelo CALMS com cultura, automação, Lean, medição e compartilhamento" loading="lazy" className="mx-auto max-h-80 w-full object-contain p-3" />
+              <figcaption className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">CALMS conecta práticas técnicas e colaboração para melhorar o fluxo de entrega.</figcaption>
+            </figure>
           </div>
 
           {/* GitFlow */}

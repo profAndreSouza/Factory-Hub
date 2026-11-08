@@ -12,16 +12,16 @@ const isaPyramid = [
     label: 'Level 4 — Enterprise',
     description: 'ERP / Cloud AWS',
     mapping: 'EC2 + RDS + SQS',
-    color: 'bg-blue-700',
-    width: 'w-full',
+    color: 'bg-cyan-400',
+    width: 'w-2/6',
   },
   {
     level: 3,
     label: 'Level 3 — MES',
     description: 'Manufacturing Execution',
     mapping: 'Backend Java Spring Boot',
-    color: 'bg-blue-600',
-    width: 'w-5/6',
+    color: 'bg-cyan-500',
+    width: 'w-3/6',
   },
   {
     level: 2,
@@ -36,24 +36,35 @@ const isaPyramid = [
     label: 'Level 1 — Control',
     description: 'PLCs / Controllers',
     mapping: 'ESP32 Firmware',
-    color: 'bg-cyan-500',
-    width: 'w-3/6',
+    color: 'bg-blue-600',
+    width: 'w-5/6',
   },
   {
     level: 0,
     label: 'Level 0 — Field',
     description: 'Sensors & Actuators',
     mapping: 'DS18B20 · MPU-6050',
-    color: 'bg-cyan-400',
-    width: 'w-2/6',
+    color: 'bg-blue-700',
+    width: 'w-full',
   },
 ];
 
 export const HomePage: React.FC = () => {
   const [services, setServices] = useState<ServiceHealth[]>([]);
+  const [healthError, setHealthError] = useState(false);
+  const [healthLoaded, setHealthLoaded] = useState(false);
 
   useEffect(() => {
-    getServiceHealth().then(setServices);
+    let mounted = true;
+    const refreshHealth = () => getServiceHealth().then(data => {
+      if (!mounted) return;
+      setServices(data);
+      setHealthError(false);
+      setHealthLoaded(true);
+    }).catch(() => { if (mounted) { setHealthError(true); setHealthLoaded(true); } });
+    refreshHealth();
+    const interval = setInterval(refreshHealth, 10000);
+    return () => { mounted = false; clearInterval(interval); };
   }, []);
 
   return (
@@ -134,8 +145,12 @@ export const HomePage: React.FC = () => {
           <span>🔌</span> Status dos Serviços
         </h2>
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
-          {services.length === 0 ? (
-            <div className="text-sm text-gray-400 animate-pulse">Carregando status...</div>
+          {healthError ? (
+            <div className="text-sm text-red-500">Não foi possível carregar os status enviados pelo backend.</div>
+          ) : !healthLoaded ? (
+            <div className="text-sm text-gray-400 animate-pulse">Carregando status do backend...</div>
+          ) : services.length === 0 ? (
+            <div className="text-sm text-gray-500 dark:text-gray-400">O backend não retornou status de serviços.</div>
           ) : (
             <div className="flex flex-wrap gap-4">
               {services.map(svc => (

@@ -2,6 +2,12 @@
 
 Este é o frontend da plataforma **Factory Hub**, desenvolvido em **React 18**, **TypeScript**, **Vite** e **Tailwind CSS**.
 
+### Integração com as APIs
+
+O navegador consome somente a API Java (`VITE_API_BASE_URL`, padrão local `http://localhost:8080`). A API Java encaminha internamente as inferências ao serviço Flask e agrega os estados dos serviços para o painel. O frontend não precisa conhecer nem acessar o endereço do Flask.
+
+Rotas de negócio usadas pelo frontend: `/api/v1/maquinas`, `/api/v1/telemetria/{deviceId}/recente`, `/api/v1/indicadores/{deviceId}/oee`, `/api/v1/alertas`, `/api/v1/health` e `POST /api/v1/predicoes`. Consulte [os contratos da API](../docs/05_contratos_e_especificacoes.md) para os formatos esperados.
+
 Ele foi projetado como um **Portal Educacional Interativo e Apostila Viva**, integrando as 4 disciplinas:
 1. **Automação Industrial:** Teoria de sinais OT/IT, protocolo MQTT, ciclo de vida de alertas com histerese e simulador ESP32 Wokwi mock.
 2. **Ciência de Dados:** Metodologia CRISP-DM, séries temporais, calculadora interativa de OEE e playground com inferência da Rede Neural MLP.

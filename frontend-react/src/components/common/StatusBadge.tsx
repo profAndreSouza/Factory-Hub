@@ -1,7 +1,7 @@
 import React from 'react';
 import clsx from 'clsx';
 
-type StatusValue = 'OPERATIONAL' | 'WARNING' | 'CRITICAL' | 'online' | 'offline' | 'degraded';
+type StatusValue = 'OPERATIONAL' | 'WARNING' | 'CRITICAL' | 'RISCO_ANOMALIA' | 'ATENCAO' | 'STOPPED' | 'UNKNOWN' | 'online' | 'offline' | 'degraded' | 'unknown';
 
 interface StatusBadgeProps {
   status: StatusValue;
@@ -34,10 +34,35 @@ const statusConfig: Record<StatusValue, { label: string; classes: string; dot: s
     classes: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
     dot: 'bg-red-500',
   },
+  RISCO_ANOMALIA: {
+    label: 'RISCO DE ANOMALIA',
+    classes: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+    dot: 'bg-red-500',
+  },
+  ATENCAO: {
+    label: 'ATENÇÃO',
+    classes: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+    dot: 'bg-amber-500',
+  },
+  STOPPED: {
+    label: 'STOPPED',
+    classes: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+    dot: 'bg-gray-500',
+  },
+  UNKNOWN: {
+    label: 'UNKNOWN',
+    classes: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+    dot: 'bg-gray-400',
+  },
   offline: {
     label: 'OFFLINE',
     classes: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
     dot: 'bg-red-500',
+  },
+  unknown: {
+    label: 'UNKNOWN',
+    classes: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+    dot: 'bg-gray-400',
   },
 };
 

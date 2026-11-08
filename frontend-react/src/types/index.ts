@@ -3,16 +3,16 @@ export interface TelemetryReading {
   temperatura: number;       // °C
   vibracao: number;          // mm/s
   rpm: number;
-  status: 'OPERATIONAL' | 'WARNING' | 'CRITICAL';
-  pecas_produzidas: number;
-  pecas_defeito: number;
+  status: 'OPERATIONAL' | 'WARNING' | 'CRITICAL' | 'STOPPED' | 'UNKNOWN';
+  pecas_produzidas?: number;
+  pecas_defeito?: number;
 }
 
 export interface Machine {
   device_id: string;
   nome: string;
   linha: string;
-  status: 'OPERATIONAL' | 'WARNING' | 'CRITICAL';
+  status: 'OPERATIONAL' | 'WARNING' | 'CRITICAL' | 'STOPPED' | 'UNKNOWN';
   ultima_leitura: TelemetryReading;
 }
 
@@ -22,6 +22,9 @@ export interface OeeIndicators {
   qualidade: number;         // 0-100
   oee: number;               // 0-100
   periodo: string;
+  total_pecas?: number;
+  pecas_boas?: number;
+  pecas_refugo?: number;
 }
 
 export interface Alert {
@@ -51,7 +54,7 @@ export interface PredictResponse {
 
 export interface ServiceHealth {
   name: string;
-  status: 'online' | 'offline' | 'degraded';
+  status: 'online' | 'offline' | 'degraded' | 'unknown';
   latency_ms?: number;
 }
 

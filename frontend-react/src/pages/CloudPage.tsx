@@ -107,6 +107,10 @@ export const CloudPage: React.FC = () => {
           {/* VPC Topology */}
           <div>
             <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">🌐 Topologia VPC — Factory Hub</h2>
+            <figure className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+              <img src="/assets/lessons/vpc-public-private.jpg" alt="Diagrama educacional de uma VPC dividida em sub-rede pública e sub-rede privada" loading="lazy" className="mx-auto max-h-96 w-full object-contain p-3" />
+              <figcaption className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">Compare a camada pública, que recebe tráfego externo controlado, com a camada privada, usada para recursos de dados sem exposição direta.</figcaption>
+            </figure>
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm font-mono text-xs">
               <div className="border-2 border-blue-400 rounded-xl p-4">
                 <div className="text-blue-500 font-bold mb-3">🌐 VPC: 10.0.0.0/16 (factory-hub-vpc)</div>

@@ -45,7 +45,7 @@ export const curriculumData: ModuleCurriculum[] = [
       'Feature Engineering — Médias móveis, FFT, desvio padrão',
       'Random Forest — Classificador de falhas',
       'Decomposição temporal — Y(t) = T(t) + S(t) + R(t)',
-      'Flask REST API — Endpoint /predict',
+      'Inferência via backend — Java encaminha a solicitação à API Flask',
     ],
     route: '/ciencia-de-dados',
   },
@@ -98,7 +98,7 @@ export const curriculumData: ModuleCurriculum[] = [
       'Dashboard operacional em tempo real integrando telemetria, OEE, alertas preditivos e status de todos os serviços.',
     keyConcepts: [
       'Dashboard em tempo real — Auto-refresh 10s',
-      'OEE Global — Agregação por turno',
+      'OEE por máquina — Indicadores enviados pela API de negócio',
       'Alertas preditivos — Classificação por severidade',
       'Gestão de máquinas — Status por linha de produção',
       'Integração completa — IoT → Cloud → Dashboard',

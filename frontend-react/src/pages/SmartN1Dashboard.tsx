@@ -33,22 +33,30 @@ export const SmartN1Dashboard: React.FC = () => {
   const [telemetry, setTelemetry] = useState<TelemetryReading[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('esp32-torno-01');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [loadError, setLoadError] = useState(false);
 
   const fetchAll = useCallback(async () => {
-    const [m, o, a] = await Promise.all([
-      getMaquinas(),
-      getOeeIndicators('all', 'today'),
-      getAlertas(),
-    ]);
-    setMachines(m);
-    setOee(o);
-    setAlerts(a);
-    setLastRefresh(new Date());
+    try {
+      const [m, a] = await Promise.all([getMaquinas(), getAlertas()]);
+      setMachines(m);
+      setAlerts(a);
+      if (m.length) {
+        setSelectedDevice(current => m.some(machine => machine.device_id === current) ? current : m[0].device_id);
+      }
+      setLoadError(false);
+      setLastRefresh(new Date());
+    } catch {
+      setLoadError(true);
+    }
   }, []);
 
   const fetchTelemetry = useCallback(async (deviceId: string) => {
-    const t = await getTelemetria(deviceId);
-    setTelemetry(t);
+    try {
+      const t = await getTelemetria(deviceId);
+      setTelemetry(t);
+    } catch {
+      setTelemetry([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -61,6 +69,11 @@ export const SmartN1Dashboard: React.FC = () => {
     fetchTelemetry(selectedDevice);
   }, [selectedDevice, fetchTelemetry]);
 
+  useEffect(() => {
+    if (!selectedDevice) return;
+    getOeeIndicators(selectedDevice, 'hoje').then(setOee).catch(() => setOee(null));
+  }, [selectedDevice, lastRefresh]);
+
   // KPI computations
   const avgTemp = machines.length
     ? parseFloat(
@@ -68,10 +81,11 @@ export const SmartN1Dashboard: React.FC = () => {
       )
     : 0;
 
-  const totalPecas = machines.reduce((acc, m) => acc + m.ultima_leitura.pecas_produzidas, 0);
-  const totalDefeitos = machines.reduce((acc, m) => acc + m.ultima_leitura.pecas_defeito, 0);
-  const taxaRefugo =
-    totalPecas > 0 ? parseFloat(((totalDefeitos / totalPecas) * 100).toFixed(2)) : 0;
+  const totalPecas = oee?.total_pecas;
+  const totalDefeitos = oee?.pecas_refugo;
+  const taxaRefugo = totalPecas && totalDefeitos !== undefined
+    ? parseFloat(((totalDefeitos / totalPecas) * 100).toFixed(2))
+    : undefined;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -89,38 +103,35 @@ export const SmartN1Dashboard: React.FC = () => {
         </div>
       </div>
 
+      {loadError && <div role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300">Não foi possível atualizar os dados do backend. Confira a conexão com a API.</div>}
+
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <MetricCard
-          title="OEE Global"
-          value={oee?.oee ?? 0}
-          unit="%"
-          trend={1.4}
-          colorVariant={
-            (oee?.oee ?? 0) >= 85 ? 'success' : (oee?.oee ?? 0) >= 65 ? 'warning' : 'danger'
-          }
+          title="OEE da Máquina"
+          value={oee?.oee ?? '—'}
+          unit={oee ? '%' : undefined}
+          colorVariant={!oee ? 'default' : oee.oee >= 85 ? 'success' : oee.oee >= 65 ? 'warning' : 'danger'}
           icon={<span className="text-xl">📊</span>}
         />
         <MetricCard
           title="Peças Hoje"
-          value={totalPecas * 48}
-          unit="pcs"
-          trend={3.2}
+          value={totalPecas ?? '—'}
+          unit={totalPecas !== undefined ? 'pcs' : undefined}
           colorVariant="default"
           icon={<span className="text-xl">🔧</span>}
         />
         <MetricCard
           title="Taxa de Refugo"
-          value={taxaRefugo}
-          unit="%"
-          trend={-0.3}
-          colorVariant={taxaRefugo > 2 ? 'danger' : taxaRefugo > 1 ? 'warning' : 'success'}
+          value={taxaRefugo ?? '—'}
+          unit={taxaRefugo !== undefined ? '%' : undefined}
+          colorVariant={taxaRefugo === undefined ? 'default' : taxaRefugo > 2 ? 'danger' : taxaRefugo > 1 ? 'warning' : 'success'}
           icon={<span className="text-xl">🗑️</span>}
         />
         <MetricCard
           title="Temp. Média"
-          value={avgTemp}
-          unit="°C"
+          value={machines.length ? avgTemp : '—'}
+          unit={machines.length ? '°C' : undefined}
           colorVariant={avgTemp > 90 ? 'danger' : avgTemp > 80 ? 'warning' : 'default'}
           icon={<span className="text-xl">🌡️</span>}
         />
@@ -258,7 +269,7 @@ export const SmartN1Dashboard: React.FC = () => {
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge
-                        status={alert.status_previsto as 'OPERATIONAL' | 'WARNING' | 'CRITICAL'}
+                        status={alert.status_previsto as 'OPERATIONAL' | 'WARNING' | 'CRITICAL' | 'RISCO_ANOMALIA' | 'ATENCAO'}
                         size="sm"
                       />
                     </td>

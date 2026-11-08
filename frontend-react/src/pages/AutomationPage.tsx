@@ -121,6 +121,10 @@ export const AutomationPage: React.FC = () => {
           {/* MQTT */}
           <div>
             <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">📡 Protocolo MQTT</h2>
+            <figure className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+              <img src="/assets/lessons/mqtt-pubsub.jpg" alt="Diagrama didático de publicação e assinatura MQTT entre produtores, broker e consumidores" loading="lazy" className="mx-auto max-h-80 w-full object-contain p-3" />
+              <figcaption className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">No fluxo industrial, o sensor publica no broker e os consumidores interessados recebem a telemetria pelo tópico.</figcaption>
+            </figure>
             <TheoryBox type="info" title="Estrutura de Tópico">
               <code className="text-blue-600 dark:text-blue-300 font-mono text-sm">
                 factory/celula-n1/{'<device_id>'}/telemetria
