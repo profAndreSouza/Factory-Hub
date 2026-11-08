@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import os
+from copy import deepcopy
 from datetime import datetime, timezone
 from threading import Lock, Thread
 from time import monotonic
@@ -142,7 +143,7 @@ def create_app(
     @app.get("/training/status")
     def get_training_status() -> Any:
         with training_lock:
-            return jsonify(dict(training_status))
+            return jsonify(deepcopy(training_status))
 
     @app.get("/health")
     def health() -> Any:

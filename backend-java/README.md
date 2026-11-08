@@ -25,6 +25,8 @@ O perfil `mock` é o padrão para OEE e alertas; o Compose ativa também o perfi
 | `GET /api/v1/alertas` | Alertas de condição/anomalia | `MockFactoryDataAdapter` | Alertas consolidados no RDS |
 | `GET /api/v1/telemetria/{deviceId}/recente` | Série recente de sensores | InfluxDB no Docker | InfluxDB |
 | `POST /api/v1/predicoes` | Predição de condição de máquina | Flask privado treinado com amostras sintéticas | API Flask privada (`POST /predict`) |
+| `POST /api/v1/treinamentos` | Solicita retreinamento do modelo | Flask privado, com dados históricos do InfluxDB | API Flask privada (`POST /train`) |
+| `GET /api/v1/treinamentos/status` | Etapa, mensagens e métricas do treino | Flask privado | API Flask privada (`GET /training/status`) |
 | `GET /api/v1/health` | Estado do backend e dependências | Java + Flask reais; RDS/MQTT marcados como `MOCK` | Verificações ativas em cada serviço; InfluxDB consultado no perfil `influx` |
 
 Os adapters ficam atrás das interfaces em `application/port`. Ao conectar RDS e outros serviços, implemente adapters para essas interfaces e selecione o perfil correspondente. Não é necessário alterar os contratos REST consumidos pelo React.

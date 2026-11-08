@@ -15,6 +15,10 @@ O modelo divide os dados em treino e teste, calcula acurácia e F1 macro e guard
 - `POST /predict`: recebe `device_id`, `temperatura`, `vibracao`, `rpm`; retorna classe prevista, probabilidade de falha, recomendação, versão do modelo, instante da análise e origem dos dados de treino.
 - `GET /health`: estado de disponibilidade do serviço e do modelo carregado.
 - `GET /model/info`: algoritmo, atributos, classes, métricas, tamanho e origem do conjunto de treino.
+- `POST /train`: inicia um retreinamento em segundo plano usando o histórico atual do InfluxDB.
+- `GET /training/status`: mostra etapa, percentual, mensagens, métricas e resultado do treinamento em andamento ou mais recente.
+
+No frontend, a página **Ciência de Dados > Laboratório** permite iniciar esse fluxo e acompanhar as mensagens. O React chama as rotas de treinamento do backend Java; somente o backend conversa com o Flask. O modelo atual continua atendendo predições enquanto a nova versão é treinada e é substituído quando o treino termina.
 
 O Compose mantém a porta 5000 apenas na rede interna e o backend Java usa `ML_SERVICE_BASE_URL=http://ml-service:5000`. O navegador chama somente a API Java.
 
