@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 import os
+from datetime import datetime, timezone
+from threading import Lock, Thread
 from time import monotonic
 from typing import Any
 
@@ -44,33 +46,133 @@ def create_app(
     artifact = load_or_train_model(resolved_model_path, data_source)
     prediction_service = PredictionService(artifact)
     app.config["prediction_service"] = prediction_service
+    app.config["model_artifact"] = artifact
+    training_lock = Lock()
+    training_status: dict[str, Any] = {
+        "state": "completed",
+        "stage": "ready",
+        "progress": 100,
+        "message": "Modelo carregado e pronto para análise.",
+        "messages": [{
+            "stage": "ready",
+            "message": "Modelo carregado e pronto para análise.",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }],
+        "metrics": artifact["metrics"],
+        "training_records": artifact["training_records"],
+        "training_data_source": artifact["training_source"],
+        "trained_at": artifact["trained_at"],
+        "model_version": artifact["model_version"],
+    }
+
+    def update_training(stage: str, message: str, progress: int) -> None:
+        with training_lock:
+            training_status.update({
+                "state": "running",
+                "stage": stage,
+                "progress": progress,
+                "message": message,
+            })
+            training_status["messages"].append({
+                "stage": stage,
+                "message": message,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+
+    def run_training() -> None:
+        try:
+            artifact = load_or_train_model(
+                resolved_model_path,
+                data_source,
+                progress_callback=update_training,
+                force_retrain=True,
+            )
+            app.config["model_artifact"] = artifact
+            app.config["prediction_service"] = PredictionService(artifact)
+            with training_lock:
+                training_status.update({
+                    "state": "completed",
+                    "stage": "complete",
+                    "progress": 100,
+                    "message": "Treinamento concluído. O novo modelo já está ativo para as predições.",
+                    "metrics": artifact["metrics"],
+                    "training_records": artifact["training_records"],
+                    "training_data_source": artifact["training_source"],
+                    "trained_at": artifact["trained_at"],
+                    "model_version": artifact["model_version"],
+                })
+                training_status["messages"].append({
+                    "stage": "complete",
+                    "message": training_status["message"],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+        except Exception as error:
+            with training_lock:
+                training_status.update({
+                    "state": "failed",
+                    "stage": "failed",
+                    "message": f"Falha no treinamento: {error}",
+                })
+                training_status["messages"].append({
+                    "stage": "failed",
+                    "message": training_status["message"],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+
+    @app.post("/train")
+    def start_training() -> Any:
+        with training_lock:
+            if training_status["state"] == "running":
+                return jsonify(training_status), 202
+            training_status.update({
+                "state": "running",
+                "stage": "starting",
+                "progress": 0,
+                "message": "Preparando um novo treinamento com os dados atuais do InfluxDB.",
+                "messages": [],
+            })
+            training_status["messages"].append({
+                "stage": "starting",
+                "message": training_status["message"],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+        Thread(target=run_training, name="factoryhub-model-training", daemon=True).start()
+        return jsonify(training_status), 202
+
+    @app.get("/training/status")
+    def get_training_status() -> Any:
+        with training_lock:
+            return jsonify(dict(training_status))
 
     @app.get("/health")
     def health() -> Any:
+        current_artifact = app.config["model_artifact"]
         return jsonify({
             "status": "UP",
             "service": "factoryhub-ml-service",
             "uptime_seconds": int(monotonic() - started_at),
             "model_loaded": True,
-            "model_version": artifact["model_version"],
-            "training_data_source": artifact["training_source"],
-            "training_records": artifact["training_records"],
-            "trained_at": artifact["trained_at"],
-            "metrics": artifact["metrics"],
+            "model_version": current_artifact["model_version"],
+            "training_data_source": current_artifact["training_source"],
+            "training_records": current_artifact["training_records"],
+            "trained_at": current_artifact["trained_at"],
+            "metrics": current_artifact["metrics"],
         })
 
     @app.get("/model/info")
     def model_info() -> Any:
+        current_artifact = app.config["model_artifact"]
+        current_prediction_service = app.config["prediction_service"]
         return jsonify({
-            "model_version": artifact["model_version"],
+            "model_version": current_artifact["model_version"],
             "algorithm": "RandomForestClassifier",
             "features": artifact["feature_names"],
-            "classes": [str(label) for label in prediction_service.model.classes_],
-            "training_data_source": artifact["training_source"],
-            "training_records": artifact["training_records"],
-            "metrics": artifact["metrics"],
-            "trained_at": artifact["trained_at"],
-            "loaded_from_disk": artifact["loaded_from_disk"],
+            "classes": [str(label) for label in current_prediction_service.model.classes_],
+            "training_data_source": current_artifact["training_source"],
+            "training_records": current_artifact["training_records"],
+            "metrics": current_artifact["metrics"],
+            "trained_at": current_artifact["trained_at"],
+            "loaded_from_disk": current_artifact["loaded_from_disk"],
         })
 
     @app.post("/predict")
@@ -96,6 +198,6 @@ def create_app(
                 return jsonify({"error": f"{field} deve estar entre {minimum:g} e {maximum:g}."}), 400
             normalized[field] = float(value)
 
-        return jsonify(prediction_service.predict(normalized))
+        return jsonify(app.config["prediction_service"].predict(normalized))
 
     return app

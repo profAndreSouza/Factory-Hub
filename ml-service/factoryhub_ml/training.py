@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import joblib
 import numpy as np
@@ -15,26 +15,32 @@ from sklearn.model_selection import train_test_split
 from .data_source import MockTrainingDataSource, TrainingDataSource
 
 FEATURE_NAMES = ("temperatura", "vibracao", "rpm")
-MODEL_VERSION = "random-forest-mock-v1.0.0"
+MODEL_VERSION = "random-forest-v1.0.0"
 
 
 def load_or_train_model(
     model_path: str | Path,
     data_source: TrainingDataSource | None = None,
+    progress_callback: Callable[[str, str, int], None] | None = None,
+    force_retrain: bool = False,
 ) -> dict[str, Any]:
     """Load the persisted model, or train it once from the configured source."""
     path = Path(model_path)
     source = data_source or MockTrainingDataSource()
-    if path.exists():
+    if path.exists() and not force_retrain:
         artifact = joblib.load(path)
-        if artifact.get("training_source") == source.source_name:
+        if (artifact.get("training_source") == source.source_name
+                and artifact.get("model_version") == MODEL_VERSION):
             artifact["loaded_from_disk"] = True
             return artifact
 
+    report = progress_callback or (lambda _stage, _message, _progress: None)
+    report("data", "Consultando o histórico de telemetria no InfluxDB.", 10)
     rows = source.fetch_training_rows()
     if len(rows) < 30:
         raise ValueError("A fonte de treino precisa fornecer ao menos 30 medições rotuladas.")
 
+    report("data", f"{len(rows)} medições carregadas. Preparando atributos e rótulos.", 30)
     features = np.asarray(
         [[float(row[name]) for name in FEATURE_NAMES] for row in rows],
         dtype=np.float64,
@@ -47,6 +53,7 @@ def load_or_train_model(
         random_state=42,
         stratify=labels,
     )
+    report("preparation", f"Dados divididos: {len(y_train)} para treino e {len(y_test)} para validação.", 45)
 
     model = RandomForestClassifier(
         n_estimators=120,
@@ -57,6 +64,7 @@ def load_or_train_model(
         n_jobs=1,
     )
     model.fit(x_train, y_train)
+    report("modeling", "Floresta treinada. Calculando métricas no conjunto de validação.", 80)
     predictions = model.predict(x_test)
 
     artifact: dict[str, Any] = {
@@ -76,4 +84,5 @@ def load_or_train_model(
 
     path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(artifact, path)
+    report("complete", "Modelo salvo e pronto para novas predições.", 100)
     return artifact

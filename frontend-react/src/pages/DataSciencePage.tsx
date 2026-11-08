@@ -5,8 +5,8 @@ import { TheoryBox } from '../components/common/TheoryBox';
 import { TelemetryLineChart } from '../components/charts/TelemetryLineChart';
 import { OeeGaugeChart } from '../components/charts/OeeGaugeChart';
 import { getTelemetria } from '../services/telemetryService';
-import { predict } from '../services/aiPredictService';
-import { TelemetryReading, PredictResponse } from '../types';
+import { getModelTrainingStatus, predict, startModelTraining } from '../services/aiPredictService';
+import { ModelTrainingStatus, TelemetryReading, PredictResponse } from '../types';
 
 const TABS = [
   { id: 'teoria', label: '📚 Teoria' },
@@ -69,10 +69,36 @@ export const DataSciencePage: React.FC = () => {
   const [aiResult, setAiResult] = useState<PredictResponse | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [training, setTraining] = useState<ModelTrainingStatus | null>(null);
+  const [trainingLoading, setTrainingLoading] = useState(false);
+  const [trainingError, setTrainingError] = useState('');
 
   useEffect(() => {
     getTelemetria('esp32-torno-01').then(setTelemetry).catch(() => setTelemetry([]));
+    getModelTrainingStatus().then(setTraining).catch(() => setTrainingError('Não foi possível consultar o estado do treinamento.'));
   }, []);
+
+  useEffect(() => {
+    if (training?.state !== 'running') return;
+    const interval = setInterval(() => {
+      getModelTrainingStatus().then(setTraining).catch(() => {
+        setTrainingError('A conexão foi interrompida ao acompanhar o treinamento.');
+      });
+    }, 1200);
+    return () => clearInterval(interval);
+  }, [training?.state]);
+
+  const handleTrainModel = async () => {
+    setTrainingLoading(true);
+    setTrainingError('');
+    try {
+      setTraining(await startModelTraining());
+    } catch {
+      setTrainingError('Não foi possível iniciar o treinamento. Confira a conexão com o backend.');
+    } finally {
+      setTrainingLoading(false);
+    }
+  };
 
   const handlePredict = async () => {
     setAiLoading(true);
@@ -290,6 +316,68 @@ export const DataSciencePage: React.FC = () => {
 
       {activeTab === 'lab' && (
         <div className="space-y-6">
+          <section className="rounded-xl border border-indigo-200 bg-white p-5 shadow-sm dark:border-indigo-900 dark:bg-gray-800" aria-live="polite">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-base font-bold text-gray-800 dark:text-gray-100">Treinamento do modelo</h2>
+                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                  O modelo é treinado automaticamente quando ainda não existe uma versão salva. Use o botão para treinar novamente com o histórico atual do InfluxDB.
+                </p>
+              </div>
+              <button
+                onClick={handleTrainModel}
+                disabled={trainingLoading || training?.state === 'running'}
+                className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {trainingLoading || training?.state === 'running' ? 'Treinando…' : 'Treinar modelo'}
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <div className="mb-1 flex justify-between gap-3 text-xs">
+                <span className="font-medium text-gray-700 dark:text-gray-300">{training?.message ?? 'Consultando o serviço de treinamento…'}</span>
+                {training?.state === 'running' && <span className="shrink-0 text-indigo-600 dark:text-indigo-300">{training.progress}%</span>}
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${training?.state === 'failed' ? 'bg-red-500' : 'bg-indigo-500'}`}
+                  style={{ width: `${Math.max(0, Math.min(100, training?.progress ?? 0))}%` }}
+                />
+              </div>
+            </div>
+
+            {trainingError && <p role="alert" className="mt-3 text-xs text-red-600 dark:text-red-400">{trainingError}</p>}
+            {training?.metrics && (
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  ['Amostras', training.training_records?.toLocaleString('pt-BR') ?? '—'],
+                  ['Acurácia', `${(training.metrics.accuracy * 100).toFixed(1)}%`],
+                  ['F1 macro', `${(training.metrics.f1_macro * 100).toFixed(1)}%`],
+                  ['Fonte', training.training_data_source ?? '—'],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900/60">
+                    <div className="text-[10px] uppercase tracking-wide text-gray-400">{label}</div>
+                    <div className="mt-1 truncate text-sm font-bold text-gray-800 dark:text-gray-100">{value}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {training?.messages?.length ? (
+              <ol className="mt-4 max-h-44 space-y-2 overflow-y-auto border-t border-gray-100 pt-3 dark:border-gray-700">
+                {training.messages.slice(-8).map((entry, index) => (
+                  <li key={`${entry.timestamp}-${index}`} className="flex gap-2 text-xs text-gray-600 dark:text-gray-300">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
+                    <span>{entry.message}</span>
+                    <time className="ml-auto shrink-0 text-[10px] text-gray-400" dateTime={entry.timestamp}>
+                      {new Date(entry.timestamp).toLocaleTimeString('pt-BR')}
+                    </time>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+          </section>
+
           {/* OEE Calculator */}
           <div>
             <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">🧮 Calculadora OEE</h2>

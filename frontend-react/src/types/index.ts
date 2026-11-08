@@ -60,3 +60,26 @@ export interface ServiceHealth {
   source?: 'LIVE' | 'MOCK' | string;
 }
 
+export interface TrainingLogEntry {
+  stage: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface ModelTrainingStatus {
+  state: 'running' | 'completed' | 'failed' | string;
+  stage: string;
+  progress: number;
+  message: string;
+  messages: TrainingLogEntry[];
+  metrics?: {
+    accuracy: number;
+    f1_macro: number;
+    test_records: number;
+  };
+  training_records?: number;
+  training_data_source?: string;
+  trained_at?: string;
+  model_version?: string;
+}
+
