@@ -1,14 +1,14 @@
-# 🏭 Factory Hub — Ecossistema Integrado de Software Industrial (Indústria 4.0)
+# Factory Hub — Ecossistema Integrado de Software Industrial (Indústria 4.0)
 
 > **Projeto Integrador Multidisciplinar** conectando as disciplinas de **Automação Industrial**, **Ciência de Dados**, **Computação em Nuvem** e **Integração e Entrega Contínua (DevOps)**, dimensionado para o ambiente **AWS Academy Learner Lab**.
 
 ---
 
-## 📖 1. Visão Geral do Projeto
+## 1. Visão Geral do Projeto
 
 O **Factory Hub** é uma plataforma distribuída de manufatura inteligente inspirada no conceito de **Fábrica Virtual / Célula Fabril Smart N1**. O sistema implementa uma esteira completa de engenharia de software industrial: desde a geração de sinais na borda simulada até a predição de anomalias por Redes Neurais e visualização gerencial do **OEE (Overall Equipment Effectiveness)**.
 
-### 🎯 Alinhamento com as Unidades Curriculares
+### Alinhamento com as Unidades Curriculares
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────┐
@@ -28,43 +28,43 @@ O **Factory Hub** é uma plataforma distribuída de manufatura inteligente inspi
 
 ---
 
-## 🏛️ 2. Arquitetura da Solução
+## 2. Arquitetura da Solução
 
 ```mermaid
 flowchart TD
-    subgraph OT[" Chão de Fábrica / Borda Simutada (Automação Industrial) "]
-        WOK["ESP32 Simulado\n(Wokwi)\nTelemetria Industrial"] -->|"MQTT / TLS\n(JSON Payload)"| IOT["AWS IoT Core\n(Message Broker)"]
-        NRED["Node-RED\n(Dashboard & Injeção de Falhas)"] -.->|"MQTT Pub/Sub"| IOT
+    subgraph OT["Chão de Fábrica / Borda Simulada (Automação Industrial)"]
+        WOK["ESP32 Simulado<br/>(Wokwi)<br/>Telemetria Industrial"] -->|"MQTT / TLS<br/>(JSON Payload)"| IOT["AWS IoT Core<br/>(Message Broker)"]
+        NRED["Node-RED<br/>(Dashboard & Injeção de Falhas)"] -.->|"MQTT Pub/Sub"| IOT
     end
 
-    subgraph AWS[" Nuvem AWS (AWS Academy Learner Lab Sandbox) "]
-        IOT -->|"IoT Topic Rule\n(SELECT * FROM industria/#)"| SQS["Amazon SQS\n(Buffer / Fila de Picos)"]
+    subgraph AWS["Nuvem AWS (AWS Academy Learner Lab Sandbox)"]
+        IOT -->|"IoT Topic Rule<br/>(SELECT * FROM industria/#)"| SQS["Amazon SQS<br/>(Buffer / Fila de Picos)"]
 
-        subgraph EC2[" Instância Amazon EC2 (t3.small - Docker Host) "]
-            JAVA["Backend Java\n(Spring Boot 3)\nConsumidor SQS & Regras OEE"]
-            FLASK["API Python Flask\n(Rede Neural / Inferência)"]
-            REACT["Frontend React\n(Nginx Container)"]
-            TSDB[("Banco Temporal\n(TimescaleDB / InfluxDB Docker)")]
+        subgraph EC2["Instância Amazon EC2 (t3.small - Docker Host)"]
+            JAVA["Backend Java<br/>(Spring Boot 3)<br/>Consumidor SQS & Regras OEE"]
+            FLASK["API Python Flask<br/>(Rede Neural / Inferência)"]
+            REACT["Frontend React<br/>(Nginx Container)"]
+            TSDB[("Banco Temporal<br/>(TimescaleDB / InfluxDB Docker)")]
         end
 
         SQS -->|"Consumo em Batch"| JAVA
         JAVA -->|"1. Grava Telemetria Bruta"| TSDB
-        JAVA -->|"2. Grava Indicadores OEE & Paradas"| RDS[("Amazon RDS PostgreSQL\n(db.t3.micro)")]
+        JAVA -->|"2. Grava Indicadores OEE & Paradas"| RDS[("Amazon RDS PostgreSQL<br/>(db.t3.micro)")]
         FLASK -->|"Consulta Histórico para Dataset"| TSDB
         JAVA -->|"Request HTTP /predict"| FLASK
         REACT -->|"Consome APIs REST"| JAVA
     end
 
-    subgraph DEVOPS[" DevOps & CI/CD Pipeline "]
-        GHA["GitHub Actions"] -->|"1. Testes & Quality Gates"| DH["Docker Hub\n(Imagens Versionadas)"]
+    subgraph DEVOPS["DevOps & CI/CD Pipeline"]
+        GHA["GitHub Actions"] -->|"1. Testes & Quality Gates"| DH["Docker Hub<br/>(Imagens Versionadas)"]
         GHA -->|"2. Deploy via SSH"| EC2
-        TF["Terraform (IaC)\n(com LabRole)"| Provisiona| AWS
+        TF["Terraform (IaC)<br/>(com LabRole)"] -->|"Provisiona"| AWS
     end
 ```
 
 ---
 
-## 🧩 3. Componentes e Responsabilidades
+## 3. Componentes e Responsabilidades
 
 | Componente | Tecnologia | Disciplina | Responsabilidade |
 |---|---|---|---|
@@ -82,7 +82,7 @@ flowchart TD
 
 ---
 
-## 💡 4. Diretrizes Críticas para AWS Academy Learner Lab
+## 4. Diretrizes Críticas para AWS Academy Learner Lab
 
 > [!WARNING]
 > **Limitações do AWS Academy Learner Lab:**
@@ -100,7 +100,7 @@ flowchart TD
 
 ---
 
-## 📡 5. Contratos de Dados e Interfaces
+## 5. Contratos de Dados e Interfaces
 
 ### 5.1. Payload MQTT (ESP32 -> AWS IoT Core)
 **Tópico:** `industria/smartn1/telemetria`
@@ -147,7 +147,7 @@ flowchart TD
 
 ---
 
-## 🗂️ 6. Estrutura do Repositório Recomendada
+## 6. Estrutura do Repositório Recomendada
 
 ```text
 Factory Hub/
@@ -197,7 +197,7 @@ Factory Hub/
 
 ---
 
-## 🚀 7. Como Iniciar a Execução
+## 7. Como Iniciar a Execução
 
 Consulte o documento detalhado **[plano_implementacao.md](./plano_implementacao.md)** para o passo a passo de cada uma das 6 fases do projeto.
 
