@@ -4,7 +4,7 @@ O workflow `.github/workflows/terraform.yml` executa Terraform no GitHub Actions
 
 O Terraform cria VPC, EC2 com Docker e SSM Agent, RDS PostgreSQL privado, SQS/DLQ, regra IoT, Lambda consumidora e rede. A EC2 não recebe conexões SSH. A configuração e o deploy SSM usam APIs HTTPS; o SSM Agent inicia conexões de saída HTTPS/443.
 
-O backend Java usa o RDS quando executado com o perfil `postgres`. O Terraform publica host, database, username e senha em parâmetros do Systems Manager sob `/factoryhub/academy/rds`; a senha é `SecureString`. O deployment via SSM busca esses parâmetros pela instance profile e grava a configuração no `.env` da EC2 sem incluir a senha no comando enviado pelo GitHub.
+O backend Java usa o RDS quando executado com o perfil `postgres`. O Terraform publica host, database, username e senha em parâmetros do Systems Manager sob `/factoryhub/academy/rds`; a senha é `SecureString`. Também publica as configurações do Docker Hub e InfluxDB sob `/factoryhub/academy/runtime`, com token e senha do InfluxDB como `SecureString`. O deployment via SSM busca esses parâmetros pela instance profile e reconstrói o `.env` da EC2 sem incluir segredos no comando enviado pelo GitHub. Isso permite recuperar a implantação mesmo quando o bootstrap da EC2 não terminou.
 
 ## 1. Crie o bucket do state antes do primeiro workflow
 
@@ -39,7 +39,7 @@ Configure estas **Repository variables** (não são segredos):
 | `IOT_SQS_ROLE_ARN` | ARN da role confiável pelo IoT Core e autorizada a enviar para SQS |
 | `LAMBDA_EXECUTION_ROLE_ARN` | ARN da role da Lambda com permissões de logs, ENI e leitura da fila |
 
-As três variáveis IAM correspondem aos valores requeridos em `variables.tf`. O Terraform não cria nem altera roles. O perfil EC2 deve permitir SSM e `ssm:GetParameter` nos parâmetros `/factoryhub/academy/rds/*`, além de `kms:Decrypt` para a SecureString; a role IoT deve confiar em `iot.amazonaws.com` e permitir `sqs:SendMessage`; a role Lambda deve confiar em `lambda.amazonaws.com` e permitir CloudWatch Logs, operações de ENI e leitura/deleção/consulta de atributos da fila SQS. A identidade temporária usada pelo Terraform precisa poder criar os parâmetros (`ssm:PutParameter`) e passar as roles existentes (`iam:PassRole`).
+As três variáveis IAM correspondem aos valores requeridos em `variables.tf`. O Terraform não cria nem altera roles. O perfil EC2 deve permitir SSM e `ssm:GetParameter` nos parâmetros `/factoryhub/academy/rds/*` e `/factoryhub/academy/runtime/*`, além de `kms:Decrypt` para as SecureStrings; a role IoT deve confiar em `iot.amazonaws.com` e permitir `sqs:SendMessage`; a role Lambda deve confiar em `lambda.amazonaws.com` e permitir CloudWatch Logs, operações de ENI e leitura/deleção/consulta de atributos da fila SQS. A identidade temporária usada pelo Terraform precisa poder criar os parâmetros (`ssm:PutParameter`) e passar as roles existentes (`iam:PassRole`).
 
 Os Secrets AWS do Learner Lab expiram. Atualize os três antes de cada execução iniciada após expiração. Não cole esses valores em arquivos do repositório, issues ou mensagens.
 
@@ -57,7 +57,7 @@ Os Secrets AWS do Learner Lab expiram. Atualize os três antes de cada execuçã
 
 O Terraform pode criar parte da infraestrutura antes de encontrar um erro. Corrija a causa, publique a alteração e execute novamente o workflow: ele consulta o state remoto no S3 e planeja as alterações restantes. Não apague o state nem remova manualmente os recursos já criados.
 
-O workflow usa Terraform 1.10.5, executa `init`, `fmt -check`, `validate`, `plan` e `apply`, e impede duas execuções concorrentes. A integração Java cria os parâmetros SSM nesta mesma configuração; ela não substitui a EC2. Se o bucket não existir, o versionamento estiver desativado ou faltar configuração, a execução para antes do `plan`/`apply`.
+O workflow usa Terraform 1.10.5, executa `init`, `fmt -check`, `validate`, `plan` e `apply`, e impede duas execuções concorrentes. A configuração cria parâmetros SSM para RDS e runtime sem substituir a EC2. Se o bucket não existir, o versionamento estiver desativado ou faltar configuração, a execução para antes do `plan`/`apply`.
 
 O backend guarda state e lock no S3. O principal AWS usado pelo GitHub Actions precisa de `s3:ListBucket`, `s3:GetBucketLocation`, `s3:GetBucketVersioning`, leitura/escrita do objeto `factoryhub/terraform.tfstate` e leitura/escrita/remoção do arquivo de lock `factoryhub/terraform.tfstate.tflock`, além das permissões AWS de provisionamento. Restrinja essas permissões ao bucket e aos objetos do Factory Hub quando o ambiente permitir.
 
@@ -71,17 +71,7 @@ O output `frontend_url` aponta para o portal HTTP na porta 80. InfluxDB na porta
 
 ## Deploy da aplicação via SSM
 
-Após o provisionamento, aguarde a EC2 aparecer **Online** no Systems Manager. Execute o workflow `.github/workflows/terraform.yml` após adicionar alterações Terraform, para criar também os parâmetros de conexão do RDS; em seguida execute `deploy-ssm.yml`. Esse deploy busca os parâmetros SecureString, atualiza o `.env` e inicia o Compose. O workflow só publica imagens se o commit enviado para `main` contiver a linha `- dockerhub publish` na mensagem. Nesse caso publica `latest` e `sha-<commit>`; se `SSM_DEPLOY_ENABLED=true`, também atualiza a EC2 via SSM. O acionamento manual não publica imagens e reaplica a imagem `latest` já existente.
-
-Para solicitar publicação, inclua o marcador no corpo da mensagem do commit, por exemplo:
-
-```text
-feat: preparar nova versão
-
-- dockerhub publish
-```
-
-O deploy pode ser acionado manualmente. Para ativar deploy automático após pushes em `main`, configure também a Repository variable `SSM_DEPLOY_ENABLED=true`. Atualize as credenciais AWS temporárias no GitHub sempre que expirarem.
+Após o provisionamento, aguarde a EC2 aparecer **Online** no Systems Manager. Execute o workflow `.github/workflows/terraform.yml` para criar os parâmetros de runtime usados pelo Compose; em seguida, inicie manualmente `.github/workflows/deploy-ssm.yml` em **Actions → Deploy through SSM → Run workflow**. Esse workflow não constrói nem publica imagens: ele baixa `latest` do Docker Hub, atualiza o `.env` com valores do SSM e inicia o Compose. Atualize as credenciais AWS temporárias no GitHub sempre que expirarem.
 
 ## Destruir a infraestrutura
 

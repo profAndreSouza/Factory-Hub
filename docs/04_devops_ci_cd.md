@@ -72,17 +72,13 @@ O pipeline do GitHub Actions impede o merge para `main` se:
 
 O repositório possui dois workflows separados:
 
-1. `.github/workflows/deploy-ssm.yml` só constrói/publica imagens Docker no Docker Hub quando a mensagem do commit na branch `main` contém `- dockerhub publish`. A publicação gera as tags `latest` e `sha-${{ github.sha }}`. Com `SSM_DEPLOY_ENABLED=true`, o mesmo workflow atualiza a EC2 usando Systems Manager Run Command; o SSM Agent recebe o comando por conexão de saída HTTPS/443, sem abrir a porta 22. O comando executa:
+1. `.github/workflows/deploy-ssm.yml` é acionado somente de forma manual em **Actions → Deploy through SSM → Run workflow**. Ele não constrói nem publica imagens. A EC2 baixa a tag `latest` já publicada no Docker Hub usando Systems Manager Run Command; o SSM Agent recebe o comando por conexão de saída HTTPS/443, sem abrir a porta 22. O workflow prepara Docker/Compose se necessário, clona o repositório caso `/opt/factoryhub` ainda não exista, lê os parâmetros de runtime no SSM, atualiza `.env` e executa:
    ```bash
-   cd /opt/factoryhub
-   git fetch origin main && git reset --hard origin/main
-   IMAGE_TAG=sha-${GITHUB_SHA} docker compose -f docker-compose.cloud.yml pull
-   IMAGE_TAG=sha-${GITHUB_SHA} docker compose -f docker-compose.cloud.yml up -d --remove-orphans
+   docker compose -f docker-compose.cloud.yml pull
+   docker compose -f docker-compose.cloud.yml up -d --remove-orphans
    ```
 
 2. `.github/workflows/terraform.yml` é iniciado manualmente e executa `init`, validação, `plan` e `apply` usando state remoto S3. O `apply` ocorre automaticamente após o `plan` dentro da mesma execução; iniciar o workflow provisiona recursos e pode gerar custos.
 
-O acionamento manual de `deploy-ssm.yml` não publica imagens: ele reaplica a imagem `latest` que já está no Docker Hub. Para solicitar uma nova publicação, inclua `- dockerhub publish` no corpo da mensagem do commit.
-
-Os GitHub Secrets incluem `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `DOCKERHUB_USERNAME` e `DOCKERHUB_TOKEN`. As Repository variables necessárias para região, bucket do state e roles IAM estão documentadas em `terraform/README.md`. Renove as credenciais AWS Academy quando expirarem. A seção Quality Gates descreve os critérios desejados; o workflow atual ainda não possui job de testes.
+O deploy usa a imagem `latest` já publicada no Docker Hub. A publicação de imagens é uma etapa separada e não faz parte deste workflow. Os GitHub Secrets usados incluem `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` e `DOCKERHUB_USERNAME`. As Repository variables necessárias para região, bucket do state e roles IAM estão documentadas em `terraform/README.md`. Renove as credenciais AWS Academy quando expirarem. A seção Quality Gates descreve os critérios desejados; o workflow atual ainda não possui job de testes.
 

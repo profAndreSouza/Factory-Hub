@@ -1,64 +1,13 @@
-name: Build and conditionally publish through SSM
+name: Deploy through SSM
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  build-and-push:
-    if: github.event_name == 'push' && contains(github.event.head_commit.message, '- dockerhub publish')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Publish Flask image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./ml-service
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-ml-service:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-ml-service:sha-${{ github.sha }}
-
-      - name: Publish Java backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend-java
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-backend:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-backend:sha-${{ github.sha }}
-
-      - name: Publish React frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend-react
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-frontend:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-frontend:sha-${{ github.sha }}
-
   deploy:
-    if: >-
-      always() &&
-      (github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' &&
-      contains(github.event.head_commit.message, '- dockerhub publish') &&
-      vars.SSM_DEPLOY_ENABLED == 'true'))
-    needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
@@ -71,34 +20,71 @@ jobs:
 
       - name: Send deploy command through Systems Manager
         env:
-          IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && 'latest' || format('sha-{0}', github.sha) }}
+          IMAGE_TAG: latest
           AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           deployment_command=$(cat <<'REMOTE_SCRIPT'
           set -euo pipefail
-          cd /opt/factoryhub
-          if ! command -v aws >/dev/null 2>&1; then dnf install -y awscli-2; fi
+          if ! command -v aws >/dev/null 2>&1 || ! command -v docker >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
+            dnf install -y awscli-2 docker git curl
+          fi
+          systemctl enable --now docker
+          if ! docker compose version >/dev/null 2>&1; then
+            install -d /usr/local/lib/docker/cli-plugins
+            curl --fail --location --retry 5 \
+              https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+              --output /usr/local/lib/docker/cli-plugins/docker-compose
+            chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+          fi
+          app_dir=/opt/factoryhub
+          install -d "$app_dir"
+          if [ ! -d "$app_dir/.git" ]; then
+            if [ -n "$(ls -A "$app_dir")" ]; then
+              echo "/opt/factoryhub exists but is not an empty clone directory."
+              exit 1
+            fi
+            git clone --depth 1 "https://github.com/__GITHUB_REPOSITORY__.git" "$app_dir"
+          fi
+          cd "$app_dir"
           git fetch origin main
           git reset --hard origin/main
           rds_prefix=/factoryhub/academy/rds
+          runtime_prefix=/factoryhub/academy/runtime
+          dockerhub_username=$(aws ssm get-parameter --name "$runtime_prefix/dockerhub-username" --query 'Parameter.Value' --output text --region __AWS_REGION__)
+          influx_org=$(aws ssm get-parameter --name "$runtime_prefix/influx-org" --query 'Parameter.Value' --output text --region __AWS_REGION__)
+          influx_bucket=$(aws ssm get-parameter --name "$runtime_prefix/influx-bucket" --query 'Parameter.Value' --output text --region __AWS_REGION__)
+          influx_seed_days=$(aws ssm get-parameter --name "$runtime_prefix/influx-seed-days" --query 'Parameter.Value' --output text --region __AWS_REGION__)
+          influx_token=$(aws ssm get-parameter --name "$runtime_prefix/influx-token" --with-decryption --query 'Parameter.Value' --output text --region __AWS_REGION__)
+          influx_password=$(aws ssm get-parameter --name "$runtime_prefix/influx-password" --with-decryption --query 'Parameter.Value' --output text --region __AWS_REGION__)
           rds_host=$(aws ssm get-parameter --name "$rds_prefix/host" --query 'Parameter.Value' --output text --region __AWS_REGION__)
           rds_database=$(aws ssm get-parameter --name "$rds_prefix/database" --query 'Parameter.Value' --output text --region __AWS_REGION__)
           rds_username=$(aws ssm get-parameter --name "$rds_prefix/username" --query 'Parameter.Value' --output text --region __AWS_REGION__)
           rds_password=$(aws ssm get-parameter --name "$rds_prefix/password" --with-decryption --query 'Parameter.Value' --output text --region __AWS_REGION__)
-          env_file=/opt/factoryhub/.env
+          env_file="$app_dir/.env"
           temp_env=$(mktemp)
-          grep -Ev '^(RDS_HOST|RDS_DATABASE|RDS_USERNAME|RDS_PASSWORD)=' "$env_file" > "$temp_env" || true
-          printf 'RDS_HOST=%s\nRDS_DATABASE=%s\nRDS_USERNAME=%s\nRDS_PASSWORD=%s\n' \
-            "$rds_host" "$rds_database" "$rds_username" "$rds_password" >> "$temp_env"
-          chown ec2-user:ec2-user "$temp_env"
+          cat > "$temp_env" <<ENV_FILE
+          DOCKERHUB_USERNAME=$dockerhub_username
+          IMAGE_TAG=latest
+          INFLUXDB_ORG=$influx_org
+          INFLUXDB_BUCKET=$influx_bucket
+          INFLUXDB_SEED_DAYS=$influx_seed_days
+          INFLUXDB_TOKEN=$influx_token
+          INFLUXDB_PASSWORD=$influx_password
+          RDS_HOST=$rds_host
+          RDS_DATABASE=$rds_database
+          RDS_USERNAME=$rds_username
+          RDS_PASSWORD=$rds_password
+          ENV_FILE
           chmod 600 "$temp_env"
           mv "$temp_env" "$env_file"
-          IMAGE_TAG=__IMAGE_TAG__ docker compose -f docker-compose.cloud.yml pull
-          IMAGE_TAG=__IMAGE_TAG__ docker compose -f docker-compose.cloud.yml up -d --remove-orphans
+          IMAGE_TAG=__IMAGE_TAG__ docker compose --env-file "$env_file" -f docker-compose.cloud.yml pull
+          IMAGE_TAG=__IMAGE_TAG__ docker compose --env-file "$env_file" -f docker-compose.cloud.yml up -d --remove-orphans
           REMOTE_SCRIPT
           )
           deployment_command=${deployment_command//__AWS_REGION__/$AWS_REGION}
           deployment_command=${deployment_command//__IMAGE_TAG__/$IMAGE_TAG}
+          deployment_command=${deployment_command//__GITHUB_REPOSITORY__/$GITHUB_REPOSITORY}
           parameters=$(jq -cn --arg command "$deployment_command" '{commands:[$command]}')
           command_id=$(aws ssm send-command \
             --targets 'Key=tag:Project,Values=factoryhub' \
@@ -116,7 +102,14 @@ jobs:
             echo "SSM deployment status: ${status}"
             case "$status" in
               Success) exit 0 ;;
-              Failed|Cancelled|TimedOut|Undeliverable|Terminated) exit 1 ;;
+              Failed|Cancelled|TimedOut|Undeliverable|Terminated)
+                echo "Remote SSM error output:"
+                aws ssm get-command-invocation \
+                  --command-id "$command_id" \
+                  --instance-id "$(aws ssm list-command-invocations --command-id "$command_id" --details --query 'CommandInvocations[0].InstanceId' --output text)" \
+                  --query StandardErrorContent --output text || true
+                exit 1
+                ;;
             esac
             sleep 10
           done

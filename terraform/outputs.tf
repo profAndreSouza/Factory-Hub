@@ -23,6 +23,11 @@ output "rds_parameter_prefix" {
   description = "SSM Parameter Store path prefix for the RDS application connection settings."
 }
 
+output "runtime_parameter_prefix" {
+  value       = local.runtime_parameter_prefix
+  description = "SSM Parameter Store path prefix for runtime container settings."
+}
+
 output "rds_admin_password" {
   value       = random_password.rds.result
   sensitive   = true
