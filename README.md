@@ -33,35 +33,74 @@ O **Factory Hub** é uma plataforma distribuída de manufatura inteligente inspi
 ## 2. Arquitetura da Solução
 
 ```mermaid
-flowchart TD
-    subgraph OT["Chão de Fábrica / Borda Simulada (Automação Industrial)"]
-        WOK["ESP32 Simulado<br/>(Wokwi)<br/>Telemetria Industrial"] -->|"MQTT / TLS<br/>(JSON Payload)"| IOT["AWS IoT Core<br/>(Message Broker)"]
-        NRED["Node-RED<br/>(Dashboard & Injeção de Falhas)"] -.->|"MQTT Pub/Sub"| IOT
+flowchart TB
+    subgraph EDGE["Camada de dispositivos"]
+        ESP[ESP32]
     end
 
-    subgraph AWS["Nuvem AWS (AWS Academy Learner Lab Sandbox)"]
-        IOT -->|"IoT Topic Rule<br/>(SELECT * FROM industria/#)"| SQS["Amazon SQS<br/>(Buffer / Fila de Picos)"]
+    subgraph INGEST["Camada de ingestão"]
+        direction LR
+        IOT[AWS IoT Core — MQTT]
+        RULE[IoT Rule]
+        SQS[Amazon SQS]
+        LAMBDA[AWS Lambda]
 
-        subgraph EC2["Instância Amazon EC2 (t3.small - Docker Host)"]
-            JAVA["Backend Java<br/>(Spring Boot 3)<br/>Consumidor SQS & Regras OEE"]
-            FLASK["API Python Flask<br/>(Rede Neural / Inferência)"]
-            REACT["Frontend React<br/>(Nginx Container)"]
-            TSDB[("Banco Temporal<br/>(TimescaleDB / InfluxDB Docker)")]
+        IOT --> RULE --> SQS --> LAMBDA
+    end
+
+    subgraph DATA["Camada de armazenamento"]
+        INFLUX[(InfluxDB<br/>Dados brutos)]
+        RDS[(Amazon RDS<br/>Dados consolidados)]
+        MODEL[(Modelos treinados)]
+    end
+
+    subgraph APP["Camada de aplicação e processamento"]
+        subgraph EC2["Amazon EC2 — Containers Docker"]
+            JAVA[Backend Java<br/>Consolidação e API]
+            PYTHON[API Python<br/>Treinamento e predição]
+            REACT[Frontend React<br/>Servidor web]
         end
-
-        SQS -->|"Consumo em Batch"| JAVA
-        JAVA -->|"1. Grava Telemetria Bruta"| TSDB
-        JAVA -->|"2. Grava Indicadores OEE & Paradas"| RDS[("Amazon RDS PostgreSQL<br/>(db.t3.micro)")]
-        FLASK -->|"Consulta Histórico para Dataset"| TSDB
-        JAVA -->|"Request HTTP /predict"| FLASK
-        REACT -->|"Consome APIs REST"| JAVA
     end
 
-    subgraph DEVOPS["DevOps & CI/CD Pipeline"]
-        GHA["GitHub Actions"] -->|"1. Testes & Quality Gates"| DH["Docker Hub<br/>(Imagens Versionadas)"]
-        GHA -->|"2. Deploy via SSH"| EC2
-        TF["Terraform (IaC)<br/>(com LabRole)"] -->|"Provisiona"| AWS
+    subgraph DEVOPS["DevOps & CI/CD"]
+        direction TB
+        REPO[Repositório GitHub]
+        GHA[GitHub Actions]
+        TEST[Testes e Quality Gates]
+        BUILD[Build das imagens Docker]
+        DH[Docker Hub<br/>Imagens versionadas]
+        DEPLOY[Deploy via SSH]
+        TF[Terraform — IaC<br/>Credenciais com LabRole]
+        AWS[Infraestrutura AWS]
+
+        REPO --> GHA
+        GHA --> TEST
+        TEST -->|Aprovado| BUILD
+        BUILD -->|Push| DH
+        DH -->|Publicação concluída| DEPLOY
+        TF -->|Provisiona e configura| AWS
     end
+
+    ESP -->|Telemetria MQTT| IOT
+    LAMBDA -->|Grava medições| INFLUX
+
+    INFLUX -->|Dados brutos| JAVA
+    JAVA -->|Grava consolidações| RDS
+    RDS -->|Consulta consolidados| JAVA
+
+    INFLUX -->|Dados para treinamento e inferência| PYTHON
+    PYTHON <-->|Salva e carrega| MODEL
+    JAVA -->|Solicita predição| PYTHON
+    PYTHON -->|Retorna predição| JAVA
+
+    REACT -->|Requisições HTTPS| JAVA
+    JAVA -->|Consolidados e predições| REACT
+
+    DEPLOY -.->|Executado pelo GitHub Actions| EC2
+    DH -.->|EC2 baixa as imagens| EC2
+    AWS -.->|Provisionamento| EC2
+    AWS -.->|Provisionamento| INGEST
+    AWS -.->|Provisionamento| RDS
 ```
 
 ---
