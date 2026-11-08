@@ -8,27 +8,49 @@
 
 ### 1.1. Tópico de Telemetria
 - **Tópico:** `industria/smartn1/telemetria`
-- **Protocolo:** MQTT v3.1.1 / MQTTS (Porta 8883)
-- **QoS:** 0 ou 1
+- **Broker:** AWS IoT Core. Obtenha o hostname em **IoT Core → Settings → Device data endpoint** ou com `aws iot describe-endpoint --endpoint-type iot:Data-ATS --query endpointAddress --output text --region us-east-1`. Use somente o hostname, sem `https://`.
+- **Protocolo:** MQTT v3.1.1 sobre TLS mútuo (MQTTS, porta 8883). O ESP32 precisa do certificado e da chave privada do dispositivo, além do Amazon Root CA 1. Configure uma IoT Policy que permita `iot:Connect` e `iot:Publish` somente para este dispositivo/tópico. O Terraform atual cria a regra MQTT, mas não cria certificados nem políticas de dispositivos.
+- **QoS:** 1 recomendado para validar a entrega durante a simulação.
 - **Payload JSON:**
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "IndustrialTelemetryPayload",
   "type": "object",
-  "required": ["device_id", "timestamp", "temperatura", "vibracao", "rpm", "status", "pecas_produzidas", "pecas_defeito"],
+  "required": ["device_id", "temperatura", "vibracao", "rpm"],
   "properties": {
     "device_id": { "type": "string", "example": "esp32-torno-01" },
-    "timestamp": { "type": "integer", "description": "Unix Epoch em segundos", "example": 1715428800 },
+    "machine_type": { "type": "string", "example": "USINAGEM" },
+    "timestamp": { "type": "integer", "description": "Unix Epoch em segundos (UTC); não usar millis()/1000", "example": 1794144000 },
     "temperatura": { "type": "number", "minimum": 0, "maximum": 150, "example": 72.4 },
     "vibracao": { "type": "number", "minimum": 0, "maximum": 50, "example": 2.35 },
     "rpm": { "type": "integer", "minimum": 0, "maximum": 10000, "example": 3480 },
-    "status": { "type": "string", "enum": ["OPERATIONAL", "WARNING", "CRITICAL", "STOPPED"] },
+    "status": { "type": "string", "enum": ["OPERATIONAL", "WARNING", "CRITICAL", "STOPPED"], "description": "Opcional; se omitido a Lambda calcula pelas faixas de temperatura e vibração." },
     "pecas_produzidas": { "type": "integer", "minimum": 0, "example": 145 },
     "pecas_defeito": { "type": "integer", "minimum": 0, "example": 3 }
   }
 }
 ```
+
+**Tópico exato:** `industria/smartn1/telemetria` (é o tópico da regra IoT que encaminha a mensagem para SQS). Para o Wokwi, configure o endpoint de dados da sua conta, porta `8883`, TLS com certificado/chave do dispositivo e Amazon Root CA 1. O `device_id` deve ser `esp32-torno-01`, `esp32-torno-02` ou `esp32-fresadora-01` para corresponder ao cadastro atual no RDS.
+
+Exemplo de mensagem publicada:
+
+```json
+{
+  "device_id": "esp32-torno-01",
+  "machine_type": "USINAGEM",
+  "timestamp": 1794144000,
+  "temperatura": 72.8,
+  "vibracao": 2.45,
+  "rpm": 3480,
+  "status": "OPERATIONAL",
+  "pecas_produzidas": 15,
+  "pecas_defeito": 1
+}
+```
+
+`timestamp` é Unix Epoch em segundos; use NTP/horário UTC no ESP32. Se for omitido, a Lambda usa o horário de recebimento. `status`, `machine_type`, `pecas_produzidas` e `pecas_defeito` são opcionais; temperatura, vibração e RPM devem ser numéricos.
 
 ---
 

@@ -45,15 +45,14 @@ O MQTT é um protocolo padrão ISO/IEC 20922 para IIoT sobre TCP/IP:
 - **Broker (Intermediário):** Servidor central (AWS IoT Core ou Eclipse Mosquitto) que recebe e encaminha as mensagens.
 - **Subscriber (Assinante):** Backend Java, Node-RED ou regras de nuvem que assinam tópicos de interesse.
 
-### 3.2. Estrutura de Tópicos
-Padrão hierárquico adotado no Factory Hub:
+### 3.2. Tópico implantado no AWS IoT Core
+O Terraform criou uma regra IoT que escuta este tópico exato e encaminha cada JSON para SQS:
 ```text
-industria/{unidade}/{celula}/{dispositivo}/{tipo_mensagem}
-Exemplo:
-industria/sp/smartn1/torno-01/telemetria
-industria/sp/smartn1/torno-01/alarmes
-industria/sp/smartn1/torno-01/comandos
+industria/smartn1/telemetria
 ```
+Para publicar do ESP32/Wokwi, use o **Device data endpoint** exibido em AWS IoT Core → Settings (hostname específico da conta), porta MQTT TLS `8883`, certificado e chave privada do dispositivo e Amazon Root CA 1. O endpoint também pode ser consultado com `aws iot describe-endpoint --endpoint-type iot:Data-ATS --query endpointAddress --output text --region us-east-1`. A regra IoT não cria a identidade do dispositivo: crie/registre certificado ativo e associe uma IoT Policy limitada a `iot:Connect` e `iot:Publish` neste tópico. Não coloque chave privada em repositório público.
+
+O `device_id` deve corresponder a um cadastro existente no RDS: `esp32-torno-01`, `esp32-torno-02` ou `esp32-fresadora-01`.
 
 ### 3.3. Níveis de Garantia de Entrega (QoS)
 - **QoS 0 (At Most Once):** A mensagem é enviada sem confirmação (*fire and forget*). Ideal para leituras contínuas de sensores a cada 3 segundos.
@@ -77,70 +76,44 @@ Para evitar que oscilações térmicas no limiar provoquem disparos intermitente
 
 ---
 
-## 5. Exemplo de Código do Firmware ESP32 (Wokwi)
+## 5. Payload de telemetria para o firmware ESP32 (Wokwi)
+
+Publique no tópico `industria/smartn1/telemetria` um JSON com este formato (campos obrigatórios: `device_id`, `temperatura`, `vibracao` e `rpm`):
+
+```json
+{
+  "device_id": "esp32-torno-01",
+  "machine_type": "USINAGEM",
+  "timestamp": 1794144000,
+  "temperatura": 72.8,
+  "vibracao": 2.45,
+  "rpm": 3480,
+  "status": "OPERATIONAL",
+  "pecas_produzidas": 15,
+  "pecas_defeito": 1
+}
+```
+
+`timestamp` é Unix Epoch em segundos (UTC), obtido por NTP; `millis()/1000` não é um horário válido. Se omitido, a Lambda usa o instante em que recebeu a mensagem. `status`, `machine_type`, `pecas_produzidas` e `pecas_defeito` são opcionais. Se o status for omitido, a Lambda calcula `CRITICAL` com temperatura ≥ 90 °C ou vibração ≥ 7 mm/s, `WARNING` com temperatura ≥ 80 °C ou vibração ≥ 4,5 mm/s e `OPERATIONAL` nos demais casos.
+
+O hostname do broker é específico da conta: abra **AWS IoT Core → Settings → Device data endpoint**, ou consulte via AWS CLI conforme a seção 3.2. No Wokwi, habilite a conexão TLS na porta `8883` e configure o certificado/chave do dispositivo e o Amazon Root CA 1. O sketch anterior usava HiveMQ sem TLS e `millis()/1000`; não corresponde ao pipeline AWS provisionado.
+
+Exemplo do JSON serializado com ArduinoJson:
 
 ```cpp
-#include <WiFi.h>
-#include <PubSubClient.h>
 #include <ArduinoJson.h>
-
-const char* ssid = "Wokwi-GUEST";
-const char* password = "";
-const char* mqtt_server = "broker.hivemq.com"; // ou endpoint AWS IoT Core
-const int mqtt_port = 1883;
-
-WiFiClient espClient;
-PubSubClient client(espClient);
-
-void setup_wifi() {
-  delay(10);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-  }
-}
-
-void reconnect() {
-  while (!client.connected()) {
-    String clientId = "ESP32-SmartN1-" + String(random(0xffff), HEX);
-    if (client.connect(clientId.c_str())) {
-      client.subscribe("industria/smartn1/cmd");
-    } else {
-      delay(5000);
-    }
-  }
-}
-
-void setup() {
-  Serial.begin(115200);
-  setup_wifi();
-  client.setServer(mqtt_server, mqtt_port);
-}
-
-void loop() {
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
-
-  // Simulação de leitura de sensores
-  float temperatura = 68.0 + (random(0, 50) / 10.0);
-  float vibracao = 2.0 + (random(0, 30) / 10.0);
-  int rpm = 3450 + random(-50, 50);
-
-  StaticJsonDocument<200> doc;
-  doc["device_id"] = "esp32-torno-01";
-  doc["timestamp"] = millis() / 1000;
-  doc["temperatura"] = temperatura;
-  doc["vibracao"] = vibracao;
-  doc["rpm"] = rpm;
-  doc["status"] = (temperatura > 85.0) ? "WARNING" : "OPERATIONAL";
-
-  char buffer[256];
-  serializeJson(doc, buffer);
-  client.publish("industria/smartn1/telemetria", buffer);
-
-  delay(4000);
-}
+StaticJsonDocument<256> doc;
+doc["device_id"] = "esp32-torno-01";
+doc["machine_type"] = "USINAGEM";
+doc["timestamp"] = unixEpochSeconds; // horário UTC obtido via NTP
+doc["temperatura"] = 72.8;
+doc["vibracao"] = 2.45;
+doc["rpm"] = 3480;
+doc["status"] = "OPERATIONAL";
+doc["pecas_produzidas"] = 15;
+doc["pecas_defeito"] = 1;
+char payload[256];
+serializeJson(doc, payload);
+client.publish("industria/smartn1/telemetria", payload, false);
 ```
 

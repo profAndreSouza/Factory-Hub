@@ -2,7 +2,7 @@
 
 > **Projeto Integrador Multidisciplinar** conectando as disciplinas de **Automação Industrial**, **Ciência de Dados**, **Computação em Nuvem** e **Integração e Entrega Contínua (DevOps)**, dimensionado para o ambiente **AWS Academy Learner Lab**.
 
-> **Estado atual da integracao:** frontend -> API Java; no Compose local, InfluxDB recebe telemetria de demonstracao e Flask treina a Random Forest com historico do InfluxDB. Cadastro de maquinas, OEE e alertas continuam mockados. A infraestrutura AWS tem configuracao Terraform e deploy por SSM preparados, mas ainda nao foi aplicada; as credenciais temporarias atuais foram rejeitadas pelo STS e as roles do Learner Lab precisam ser confirmadas.
+> **Estado atual da integracao:** frontend -> API Java -> PostgreSQL/RDS e InfluxDB; Java usa PostgreSQL para catálogo de máquinas, snapshots OEE e alertas, e consulta telemetria bruta no InfluxDB. Flask treina a Random Forest com o histórico do InfluxDB. Os snapshots OEE iniciais são didáticos; o cálculo a partir de turnos reais ainda precisa ser implementado. A infraestrutura AWS e o deploy SSM já foram provisionados e executados; o IoT Core aguarda certificado/política do dispositivo ESP32.
 
 ---
 
@@ -140,7 +140,8 @@ flowchart TB
 ```json
 {
   "device_id": "esp32-torno-01",
-  "timestamp": 1715428800,
+  "machine_type": "USINAGEM",
+  "timestamp": 1794144000,
   "temperatura": 72.8,
   "vibracao": 2.45,
   "rpm": 3480,
@@ -149,6 +150,7 @@ flowchart TB
   "pecas_defeito": 1
 }
 ```
+`timestamp` deve ser Unix Epoch em segundos UTC obtido por NTP; não use `millis()/1000`. A conexão com AWS IoT Core usa o endpoint de dados da conta, MQTTS na porta 8883, certificado/chave do dispositivo e Amazon Root CA 1. Veja o passo a passo em [`docs/01_automacao_industrial.md`](docs/01_automacao_industrial.md#32-tópico-implantado-no-aws-iot-core).
 
 ### 5.2. Endpoint da API Python Flask (Predição)
 **Rota:** `POST /predict`
