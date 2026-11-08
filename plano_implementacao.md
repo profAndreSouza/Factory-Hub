@@ -155,6 +155,8 @@ O ESP32 deve publicar a cada 3 a 5 segundos um JSON com campos compatíveis com 
 
 **Meta da Fase:** Treinar um modelo de Rede Neural com base nos dados históricos e disponibilizar inferência online.
 
+> **Entrega disponível no protótipo:** o serviço `ml-service` já oferece `/predict`, `/health` e `/model/info`. Por enquanto, ele treina uma Random Forest com registros sintéticos pelo adapter `MockTrainingDataSource`; o modelo persistido fica no volume `ml-models`. Para usar históricos reais, implemente um `TrainingDataSource` para consultar o InfluxDB. O backend Java encaminha as requisições do frontend ao Flask. A MLP descrita abaixo permanece como uma alternativa futura de modelagem.
+
 ### 4.1. Metodologia CRISP-DM Aplicada
 1. **Entendimento do Negócio:** Detectar anomalias térmicas e vibrações anormais antes que ocorra quebra de rolamentos.
 2. **Preparação dos Dados:** Normalização com `StandardScaler` e criação de janelas temporais de $N$ leituras consecutivas.

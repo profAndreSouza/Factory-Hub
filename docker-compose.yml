@@ -1,4 +1,28 @@
 services:
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    image: factoryhub-ml-service:latest
+    container_name: factoryhub-ml-service
+    restart: unless-stopped
+    environment:
+      ML_MODEL_PATH: /app/model/maintenance_model.joblib
+    volumes:
+      - ml-models:/app/model
+    expose:
+      - "5000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3)"
+      interval: 20s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
   backend-java:
     build:
       context: ./backend-java
@@ -9,8 +33,12 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: mock
       SERVER_PORT: 8080
+      ML_SERVICE_BASE_URL: http://ml-service:5000
     ports:
       - "8080:8080"
+    depends_on:
+      ml-service:
+        condition: service_healthy
 
   frontend:
     # Build a Docker image for the React frontend (multi‑stage Dockerfile in ./frontend-react)
@@ -24,4 +52,7 @@ services:
       - "80:80"
     depends_on:
       - backend-java
+
+volumes:
+  ml-models:
 

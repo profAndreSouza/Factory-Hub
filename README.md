@@ -2,13 +2,13 @@
 
 > **Projeto Integrador Multidisciplinar** conectando as disciplinas de **Automação Industrial**, **Ciência de Dados**, **Computação em Nuvem** e **Integração e Entrega Contínua (DevOps)**, dimensionado para o ambiente **AWS Academy Learner Lab**.
 
-> **Estado atual da integração:** o backend Java Spring Boot foi adicionado e já atende o frontend. Os dados de máquinas, OEE, alertas, telemetria, predição e status das dependências usam adapters mockados por padrão. Consulte [backend-java/README.md](./backend-java/README.md) para executar e ver a origem prevista de cada conjunto de dados.
+> **Estado atual da integração:** o frontend chama somente a API Java. Máquinas, OEE, telemetria e alertas ainda usam mocks; a predição Java já encaminha para o serviço Flask, que treina uma Random Forest com telemetria sintética persistida no volume Docker. A origem de treino será substituída por consultas ao banco temporal quando ele estiver integrado. IoT Core, SQS/Lambda, RDS, InfluxDB real, Terraform e CI/CD ainda representam a arquitetura planejada.
 
 ---
 
 ## 1. Visão Geral do Projeto
 
-O **Factory Hub** é uma plataforma distribuída de manufatura inteligente inspirada no conceito de **Fábrica Virtual / Célula Fabril Smart N1**. O sistema implementa uma esteira completa de engenharia de software industrial: desde a geração de sinais na borda simulada até a predição de anomalias por Redes Neurais e visualização gerencial do **OEE (Overall Equipment Effectiveness)**.
+O **Factory Hub** é uma plataforma distribuída de manufatura inteligente inspirada no conceito de **Fábrica Virtual / Célula Fabril Smart N1**. A arquitetura conecta sinais da borda simulada, dados operacionais, predição de condição de máquinas e visualização gerencial do **OEE (Overall Equipment Effectiveness)**. No protótipo atual, a API Flask treina uma Random Forest com dados sintéticos para exercitar esse fluxo.
 
 ### Alinhamento com as Unidades Curriculares
 
@@ -18,7 +18,7 @@ O **Factory Hub** é uma plataforma distribuída de manufatura inteligente inspi
 ├────────────────────────┬────────────────────────┬────────────────────────────────┤
 │  Automação Industrial  │    Ciência de Dados    │       Computação em Nuvem      │
 │  • ESP32 (Wokwi)       │  • Metodologia CRISP-DM│  • AWS Academy (LabRole)       │
-│  • MQTT & Node-RED     │  • Redes Neurais (MLP) │  • AWS IoT Core + Amazon SQS   │
+│  • MQTT & Node-RED     │  • CRISP-DM + Random Forest │  • AWS IoT Core + Amazon SQS   │
 │  • Sinais OT (Sensores)│  • API Flask Predição  │  • EC2 + Docker + RDS / IaC TF │
 ├────────────────────────┴────────────────────────┴────────────────────────────────┤
 │                    Integração e Entrega Contínua (DevOps)                        │
@@ -115,7 +115,7 @@ flowchart TB
 | **Buffer de Ingestão** | Amazon SQS (com DLQ) | Computação em Nuvem | Absorver picos de tráfego de múltiplos dispositivos, garantindo que o backend processe as mensagens de forma assíncrona sem perda de dados. |
 | **Banco Temporal** | TimescaleDB / InfluxDB (Container) | Nuvem / Dados | Armazenamento de alta performance para séries temporais brutas, ideal para consultas de janelas deslizantes da rede neural. |
 | **Banco Relacional** | Amazon RDS PostgreSQL (`db.t3.micro`) | Computação em Nuvem | Armazenamento persistente de cadastros (máquinas, linhas de produção, operadores), apontamento de turnos e logs consolidados de OEE. |
-| **API de Predição** | Python 3.11 + Flask + PyTorch/Keras | Ciência de Dados | Servir a Rede Neural (MLP ou LSTM) para diagnóstico em tempo real de anomalias mecânicas e probabilidade de falha operacional. |
+| **API de Predição** | Python 3.12 + Flask + scikit-learn | Ciência de Dados | Treinar e servir uma Random Forest. O adapter de treino atual usa dados mockados; a integração futura consultará séries temporais no InfluxDB. |
 | **Backend de Negócio** | Java 17/21 + Spring Boot 3 | Computação em Nuvem | Consumir da fila SQS, persistir nos bancos, calcular fórmulas de Disponibilidade, Performance e Qualidade (OEE) e intermediar previsões da IA. |
 | **Interface do Usuário** | React 18 + Vite + TailwindCSS | DevOps / Frontend | Exibir gráficos em tempo real de telemetria, painéis de OEE por máquina/turno e alertas preditivos de manutenção. |
 | **Infraestrutura como Código** | Terraform | Computação em Nuvem | Provisionar toda a topologia AWS dentro das restrições do AWS Academy com um comando reproduzível. |
@@ -209,12 +209,10 @@ Factory Hub/
 │   └── terraform.tfvars.example   # Exemplo de variáveis (LabRole ARN)
 │
 ├── ml-service/                    # Ciência de Dados (Python Flask + ML)
-│   ├── app.py                     # API Flask com endpoints /predict e /health
-│   ├── train.py                   # Script de treinamento do modelo de Rede Neural
-│   ├── model/                     # Pesos do modelo treinado (.h5 / .pt / .joblib)
-│   ├── tests/                     # Testes unitários com pytest
-│   ├── requirements.txt           # Dependências (Flask, PyTorch/Keras, Pandas)
-│   └── Dockerfile                 # Imagem multi-stage Python
+│   ├── factoryhub_ml/             # API, fonte de treino mockada e pipeline Random Forest
+│   ├── requirements.txt           # Flask, Gunicorn e scikit-learn
+│   ├── README.md                  # Contrato, fonte mockada e integração planejada
+│   └── Dockerfile                 # Serviço Flask containerizado
 │
 ├── backend-java/                  # Backend de Negócio & Ingestor SQS (Java)
 │   ├── pom.xml                    # Maven com dependências Spring Boot & AWS SDK

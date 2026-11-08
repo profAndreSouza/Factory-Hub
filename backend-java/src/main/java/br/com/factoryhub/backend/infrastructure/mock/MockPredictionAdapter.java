@@ -8,9 +8,9 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 
-/** Stable mock of the private Flask prediction service. */
+/** Optional no-network prediction adapter for explicitly offline runs. */
 @Component
-@Profile("mock")
+@Profile("offline")
 public class MockPredictionAdapter implements PredictionPort {
     @Override
     public PredictionResponse predict(PredictionRequest request) {

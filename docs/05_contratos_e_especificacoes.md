@@ -51,8 +51,9 @@
   "status_previsto": "RISCO_ANOMALIA",
   "probabilidade_falha": 0.8421,
   "recomendacao": "Vibração elevada no eixo secundário. Agendar inspeção preventiva.",
-  "modelo_versao": "mlp-v1.2",
-  "timestamp_analise": 1715428805
+  "modelo_versao": "random-forest-mock-v1.0.0",
+  "timestamp_analise": "2026-11-08T10:15:05Z",
+  "source": "MOCK_TRAINING_DATA"
 }
 ```
 
@@ -125,7 +126,7 @@ O backend agrega o estado dos componentes e fornece a lista exibida pelo fronten
 {
   "services": [
     { "name": "Backend Java", "status": "UP", "source": "LIVE" },
-    { "name": "Flask AI", "status": "DEGRADED", "source": "MOCK" },
+    { "name": "Flask AI", "status": "UP", "latency_ms": 14, "source": "LIVE" },
     { "name": "RDS PostgreSQL", "status": "UP", "source": "MOCK" },
     { "name": "InfluxDB", "status": "UP", "source": "MOCK" }
   ]

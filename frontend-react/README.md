@@ -10,7 +10,7 @@ Rotas de negócio usadas pelo frontend: `/api/v1/maquinas`, `/api/v1/telemetria/
 
 Ele foi projetado como um **Portal Educacional Interativo e Apostila Viva**, integrando as 4 disciplinas:
 1. **Automação Industrial:** Teoria de sinais OT/IT, protocolo MQTT, ciclo de vida de alertas com histerese e simulador ESP32 Wokwi mock.
-2. **Ciência de Dados:** Metodologia CRISP-DM, séries temporais, calculadora interativa de OEE e playground com inferência da Rede Neural MLP.
+2. **Ciência de Dados:** Metodologia CRISP-DM, séries temporais, calculadora interativa de OEE e playground de manutenção preditiva. As predições passam pelo backend Java e pelo modelo Flask treinado com telemetria sintética.
 3. **Computação em Nuvem:** Topologia AWS Academy (VPC, LabRole, SQS, EC2, RDS) e simulador do buffer SQS sob rajada.
 4. **DevOps:** GitFlow, construtor guiado de Conventional Commits com cálculo de SemVer e visualizador da esteira GitHub Actions.
 5. **Célula Fabril Smart N1:** Dashboard operacional com telemetria contínua e status de linha em tempo real.

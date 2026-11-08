@@ -3,6 +3,8 @@
 > **Unidade Curricular:** Ciência de Dados (80 horas / 20 Semanas)  
 > **Objetivo:** Transformar medições de telemetria industrial em diagnósticos preditivos através do ciclo CRISP-DM, redes neurais e indicadores OEE.
 
+> **Implementação atual:** o serviço em `ml-service/` treina uma Random Forest com 2.400 medições sintéticas rotuladas. A interface `TrainingDataSource` deverá receber, numa etapa posterior, os registros históricos do InfluxDB. Portanto, métricas atuais servem para exercitar o pipeline e não representam qualidade de um modelo de produção.
+
 ---
 
 ## 1. Metodologia CRISP-DM Aplicada ao Factory Hub
@@ -29,7 +31,7 @@ flowchart LR
    - Normalização dos atributos via `StandardScaler` ($\mu = 0, \sigma = 1$).
    - Construção de janelas deslizantes (*sliding windows*) para incorporar dinâmica temporal.
 4. **Modeling (Modelagem):**
-   - Treinamento de Rede Neural **MLP (Multilayer Perceptron)** para classificação supervisionada de risco de anomalia.
+   - No serviço atual, treinamento de **Random Forest** para classificação supervisionada em três estados. MLP pode ser avaliada como alternativa, mas não é o modelo que o endpoint serve hoje.
 5. **Evaluation (Avaliação):**
    - Priorização da métrica **Recall** para a classe de anomalia, complementada por F1-Score e Curva ROC-AUC.
 6. **Deployment (Implantação):**
@@ -53,7 +55,9 @@ Onde $\alpha \in [0.1, 0.3]$ confere maior peso às leituras recentes.
 
 ---
 
-## 3. Arquitetura da Rede Neural (MLP)
+## 3. Arquitetura alternativa de Rede Neural (MLP)
+
+Esta seção descreve uma alternativa didática. O serviço Flask implementado atualmente usa Random Forest; não executa esta MLP.
 
 A rede neural supervisionada atua na classificação binária:
 - `Classe 0`: Operação Estável / Regular.
