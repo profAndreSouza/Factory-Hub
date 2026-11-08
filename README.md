@@ -122,14 +122,14 @@ flowchart TB
 | **API de Predição** | Python 3.12 + Flask + scikit-learn | Ciência de Dados | Consultar séries históricas no InfluxDB para treinar e servir uma Random Forest; aceitar dados sintéticos quando executado sem a integração local. |
 | **Backend de Negócio** | Java 17/21 + Spring Boot 3 | Computação em Nuvem | Ler séries brutas do InfluxDB, consolidar dados e calcular Disponibilidade, Performance e Qualidade (OEE) no RDS, e intermediar previsões da IA. |
 | **Interface do Usuário** | React 18 + Vite + TailwindCSS | DevOps / Frontend | Exibir gráficos em tempo real de telemetria, painéis de OEE por máquina/turno e alertas preditivos de manutenção. |
-| **Infraestrutura como Código** | Terraform | Computação em Nuvem | Provisionar toda a topologia AWS dentro das restrições do AWS Academy com um comando reproduzível. |
-| **Esteira de CI/CD** | GitHub Actions + Docker Hub | DevOps | Orquestrar testes automatizados (unitários/integração), construir imagens Docker versionadas, publicar no Docker Hub e atualizar a EC2. |
+| **Infraestrutura como Código** | Terraform + GitHub Actions + S3 | Computação em Nuvem | Validar, planejar e aplicar a topologia AWS por workflow manual, com credenciais em GitHub Secrets e state remoto versionado no S3. |
+| **Esteira de CI/CD** | GitHub Actions + Docker Hub + SSM | DevOps | Construir e publicar imagens versionadas, atualizar a EC2 por SSM e executar Terraform manualmente com state remoto no S3. |
 
 ---
 
 ## 4. Diretrizes Críticas para AWS Academy Learner Lab
 
-> **Estado do provisionamento:** a configuracao Terraform e o deploy por SSM estao preparados, mas nenhuma infraestrutura AWS foi aplicada nesta sessao. As credenciais temporarias locais foram rejeitadas pelo STS e precisam ser renovadas. Confirme tambem se o Learner Lab fornece os perfis/roles preexistentes exigidos para EC2/SSM, IoT Rule e Lambda. A EC2 nao abre a porta 22. Veja [`terraform/README.md`](terraform/README.md) para requisitos, custos e procedimento.
+> **Provisionamento:** Terraform executa em `.github/workflows/terraform.yml` quando acionado manualmente. Credenciais AWS são lidas dos GitHub Secrets; state remoto usa o bucket S3 indicado por `TF_STATE_BUCKET`. Antes de rodar, crie o bucket com bloqueio público, versionamento e criptografia, e configure as Repository variables IAM listadas em [`terraform/README.md`](terraform/README.md). O deploy da aplicação continua no workflow SSM separado.
 
 ---
 
@@ -195,12 +195,14 @@ Factory Hub/
 │       └── flows.json             # Fluxo exportado do Node-RED para injeção de falhas
 │
 ├── terraform/                     # Computação em Nuvem (IaC AWS Academy)
+│   ├── backend.tf                 # Backend remoto S3
 │   ├── main.tf                    # Dados de região, AMI e credenciais geradas
 │   ├── network.tf                 # VPC, sub-redes, rotas e Internet Gateway
 │   ├── compute.tf                 # EC2 sem SSH, bootstrap Docker e SSM
 │   ├── storage.tf                 # RDS PostgreSQL privado
 │   ├── ingestion.tf               # IoT Rule, SQS, Lambda e event source mapping
 │   ├── security_groups.tf         # Regras web, InfluxDB, Lambda e RDS
+│   ├── README.md                  # Backend remoto, variáveis e workflow de provisionamento
 │   └── terraform.tfvars.example   # Perfis IAM preexistentes e Docker Hub
 │
 ├── ml-service/                    # Ciência de Dados (Python Flask + ML)
@@ -223,10 +225,12 @@ Factory Hub/
 │   │   └── services/              # Cliente Axios para a API Java
 │   └── Dockerfile                 # Build Vite + Nginx Alpine
 │
-├── docker-compose.yml             # Orquestração local e de produção na EC2
+├── docker-compose.yml             # Orquestração local
+├── docker-compose.cloud.yml       # Compose de produção na EC2
 └── .github/
     └── workflows/
-        └── ci-cd.yml              # Pipeline GitHub Actions (Testes -> Build -> Docker Hub -> EC2)
+        ├── terraform.yml          # Provisionamento manual com state S3
+        └── deploy-ssm.yml         # Publicação Docker Hub e deploy por SSM
 ```
 
 ---

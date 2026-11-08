@@ -68,12 +68,11 @@ O pipeline do GitHub Actions impede o merge para `main` se:
 
 ---
 
-## 4. Pipeline de CI/CD (GitHub Actions)
+## 4. Workflows do GitHub Actions
 
-O arquivo `.github/workflows/ci-cd.yml` orquestra o ciclo completo:
-1. **Job `test`:** Executa a matriz de testes para Java (Maven) e Python (Pytest).
-2. **Job `build-and-push`:** Constrói as imagens Docker multi-stage e publica no Docker Hub com duas tags: `latest` e o SHA do commit (`sha-${{ github.sha }}`).
-3. **Job `deploy`:** Autentica nas APIs AWS com as credenciais temporárias do Learner Lab, envia um `AWS-RunShellScript` pelo Systems Manager Run Command e acompanha o resultado. A EC2 recebe o comando pelo SSM Agent usando apenas conexões de saída HTTPS/443; a porta 22 não é aberta. O comando executa:
+O repositório possui dois workflows separados:
+
+1. `.github/workflows/deploy-ssm.yml` constrói e publica imagens Docker no Docker Hub com tags `latest` e `sha-${{ github.sha }}`. O deploy usa Systems Manager Run Command; a EC2 recebe o comando pelo SSM Agent usando conexões de saída HTTPS/443, sem abrir a porta 22. O comando executa:
    ```bash
    cd /opt/factoryhub
    git fetch origin main && git reset --hard origin/main
@@ -81,5 +80,7 @@ O arquivo `.github/workflows/ci-cd.yml` orquestra o ciclo completo:
    IMAGE_TAG=sha-${GITHUB_SHA} docker compose -f docker-compose.cloud.yml up -d --remove-orphans
    ```
 
-O workflow está em `.github/workflows/deploy-ssm.yml`. O GitHub Actions precisa dos secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `DOCKERHUB_USERNAME` e `DOCKERHUB_TOKEN`; renove as credenciais AWS Academy quando expirarem.
+2. `.github/workflows/terraform.yml` é iniciado manualmente e executa `init`, validação, `plan` e `apply` usando state remoto S3. O `apply` ocorre automaticamente após o `plan` dentro da mesma execução; iniciar o workflow provisiona recursos e pode gerar custos.
+
+Os GitHub Secrets incluem `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `DOCKERHUB_USERNAME` e `DOCKERHUB_TOKEN`. As Repository variables necessárias para região, bucket do state e roles IAM estão documentadas em `terraform/README.md`. Renove as credenciais AWS Academy quando expirarem. A seção Quality Gates descreve os critérios desejados; o workflow atual ainda não possui job de testes.
 

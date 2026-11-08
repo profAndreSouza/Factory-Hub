@@ -70,8 +70,8 @@ O SSM Agent na EC2 mantém uma conexão de saída HTTPS/443 com Systems Manager.
 
 O AWS Academy costuma restringir criação e alteração de roles. Por isso o Terraform recebe nomes/ARNs preexistentes: `ec2_instance_profile_name`, `iot_sqs_role_arn` e `lambda_execution_role_arn`. A role do IoT precisa confiar em `iot.amazonaws.com` e permitir `sqs:SendMessage`; a role Lambda precisa confiar em `lambda.amazonaws.com` e permitir logs, ENIs de VPC e ações de consumo SQS. A simples existência da `LabRole` não comprova essas condições.
 
-O passo a passo, os comandos de validação e os segredos esperados pelo pipeline estão em [`../terraform/README.md`](../terraform/README.md). Credenciais STS vencidas impedem chamadas AWS; não execute `apply` até `aws sts get-caller-identity` retornar sua conta.
+O provisionamento roda pelo workflow manual `.github/workflows/terraform.yml`, com as credenciais temporárias armazenadas nos GitHub Secrets e o state no S3. Crie o bucket de state fora do Terraform, com bloqueio público, versionamento e criptografia, antes do primeiro `init`. Configure também as Repository variables IAM descritas em [`../terraform/README.md`](../terraform/README.md). Renove os Secrets AWS quando a sessão do Learner Lab expirar.
 
 ## 5. Implementa??o Terraform
 
-A implementacao executavel, os parametros de exemplo e os comandos de validacao estao em [`terraform/README.md`](../terraform/README.md). Use os arquivos dessa pasta como fonte de verdade; exemplos antigos com regra IoT direta para SQS ou acesso SSH nao se aplicam ao fluxo atual. O Terraform provisiona IoT Rule -> SQS -> Lambda e usa roles preexistentes informadas nos parametros.
+A implementação executável, o backend S3 e o procedimento do workflow estão em [`../terraform/README.md`](../terraform/README.md). Use os arquivos dessa pasta como fonte de verdade; exemplos antigos com regra IoT direta para SQS ou acesso SSH não se aplicam ao fluxo atual. O Terraform provisiona IoT Rule → SQS → Lambda e usa roles preexistentes informadas nas Repository variables.

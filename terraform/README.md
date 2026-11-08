@@ -1,73 +1,74 @@
 # Provisionamento AWS do Factory Hub
 
-Esta pasta cria a VPC, EC2 Docker host, RDS PostgreSQL, SQS/DLQ, IoT Rule, Lambda consumidora e recursos de rede para SSM. A EC2 não recebe regra de entrada SSH: Terraform/GitHub Actions chamam APIs AWS por HTTPS e o SSM Agent abre comunicação de saída HTTPS/443.
+O workflow `.github/workflows/terraform.yml` executa Terraform no GitHub Actions com credenciais temporárias do Learner Lab e state remoto no S3. O runner não depende de credenciais AWS locais. O provisionamento é iniciado manualmente em **Actions → Provisionar infraestrutura AWS → Run workflow**.
 
-## Pré-requisitos
+O Terraform cria VPC, EC2 com Docker e SSM Agent, RDS PostgreSQL privado, SQS/DLQ, regra IoT, Lambda consumidora e rede. A EC2 não recebe conexões SSH. A configuração e o deploy SSM usam APIs HTTPS; o SSM Agent inicia conexões de saída HTTPS/443.
 
-- Terraform `>= 1.5`, AWS CLI v2 e Git instalados.
-- Learner Lab iniciado, com credenciais temporárias atuais no perfil AWS local.
-- Repositório público no GitHub e imagens públicas do Docker Hub com nomes `factoryhub-frontend`, `factoryhub-backend` e `factoryhub-ml-service`.
-- Perfis e roles IAM preexistentes compatíveis com o laboratório. O módulo não cria nem altera IAM:
-  - `ec2_instance_profile_name`: instance profile da EC2, com `AmazonSSMManagedInstanceCore` ou permissões SSM equivalentes.
-  - `iot_sqs_role_arn`: confiança para `iot.amazonaws.com` e permissão `sqs:SendMessage` na fila criada.
-  - `lambda_execution_role_arn`: confiança para `lambda.amazonaws.com`, permissões de CloudWatch Logs, ENIs de VPC e `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes` para a fila.
-- A identidade usada pelo Terraform precisa poder criar VPC, EC2 e RDS, criar SQS, regras IoT, Lambda, event source mapping, endpoint de VPC e passar os perfis existentes (`iam:PassRole`). O usuário de CI também precisa de `ssm:SendCommand`, `ssm:ListCommandInvocations` e `ssm:GetCommandInvocation` para a instância marcada `Project=factoryhub`.
+## 1. Crie o bucket do state antes do primeiro workflow
 
-> **AWS Academy:** não suponha que a `LabRole` sirva automaticamente aos três serviços. Ela precisa ser um instance profile utilizável pela EC2 e permitir SSM; a role Lambda precisa confiar no serviço Lambda; a role da regra IoT precisa confiar no IoT Core. Confirme essas condições no console do laboratório ou com o instrutor antes do `apply`. Se o Learner Lab não fornecer esses perfis e não permitir criá-los/alterá-los, a parte correspondente não pode ser provisionada com segurança nessa conta.
+O bucket S3 é um pré-requisito e fica fora dos recursos gerenciados por este Terraform. Crie-o uma única vez pela AWS Console, na mesma região configurada em `AWS_REGION`:
 
-## Credenciais temporárias
+- O nome deve ser globalmente único. `factory-hub-example` só funcionará se esse nome estiver disponível e o bucket tiver sido criado na sua conta.
+- Ative o bloqueio de acesso público.
+- Ative o versionamento.
+- Mantenha a criptografia padrão do S3 habilitada.
 
-Copie as credenciais atuais do AWS Academy para o perfil local `default` sem compartilhá-las no chat ou no repositório. No PowerShell, configure os campos no arquivo `%USERPROFILE%\.aws\credentials` e depois confira a identidade:
+O workflow verifica se o bucket existe e se o versionamento está ativo. O backend usa criptografia e o lock nativo do S3 (`use_lockfile=true`), disponível no Terraform 1.10 ou superior. Não apague o bucket: ele contém o state necessário para futuras atualizações e destruição da infraestrutura.
 
-```powershell
-aws sts get-caller-identity
-aws configure list
-```
+## 2. Configure GitHub Actions
 
-Se `get-caller-identity` retornar `InvalidClientTokenId`, `ExpiredToken` ou erro de sessão, renove as credenciais no Learner Lab e atualize o perfil antes de continuar. A execução neste ambiente foi bloqueada por credenciais inválidas; nenhuma chamada de provisionamento foi iniciada.
+Em **Settings → Secrets and variables → Actions**, mantenha os seguintes **Secrets**:
 
-## Preparar e revisar
+| Nome | Uso |
+| --- | --- |
+| `AWS_ACCESS_KEY_ID` | Credencial temporária do Learner Lab |
+| `AWS_SECRET_ACCESS_KEY` | Credencial temporária do Learner Lab |
+| `AWS_SESSION_TOKEN` | Token temporário do Learner Lab |
+| `DOCKERHUB_USERNAME` | Nome do usuário/organização usado nas imagens |
+| `DOCKERHUB_TOKEN` | Token usado para publicar imagens no Docker Hub |
 
-```powershell
-cd terraform
-Copy-Item terraform.tfvars.example terraform.tfvars
-# Edite terraform.tfvars com os ARNs/perfis reais e seu usuário Docker Hub.
-terraform init
-terraform fmt -recursive
-terraform validate
-terraform plan -out factoryhub.tfplan
-```
+Configure estas **Repository variables** (não são segredos):
 
-Revise o plano, a região, as regras de entrada e os serviços que serão cobrados. Só então aplique o plano revisado:
+| Nome | Uso |
+| --- | --- |
+| `AWS_REGION` | Região AWS, por exemplo `us-east-1` |
+| `TF_STATE_BUCKET` | Nome do bucket S3 de state criado acima |
+| `EC2_INSTANCE_PROFILE_NAME` | Instance profile com permissões de SSM para a EC2 |
+| `IOT_SQS_ROLE_ARN` | ARN da role confiável pelo IoT Core e autorizada a enviar para SQS |
+| `LAMBDA_EXECUTION_ROLE_ARN` | ARN da role da Lambda com permissões de logs, ENI e leitura da fila |
 
-```powershell
-terraform apply factoryhub.tfplan
-terraform output
-```
+As três variáveis IAM correspondem aos valores requeridos em `variables.tf`. O Terraform não cria nem altera roles. O perfil EC2 deve permitir SSM; a role IoT deve confiar em `iot.amazonaws.com` e permitir `sqs:SendMessage`; a role Lambda deve confiar em `lambda.amazonaws.com` e permitir CloudWatch Logs, operações de ENI e leitura/deleção/consulta de atributos da fila SQS. A identidade temporária AWS também precisa das permissões para provisionar os serviços e `iam:PassRole` nas roles fornecidas.
 
-O plano cria uma EC2 `t3.small`, RDS PostgreSQL `db.t3.micro` Single-AZ e um endpoint de interface para CloudWatch Logs, além de SQS, Lambda, VPC/sub-redes e armazenamento. Esses serviços podem gerar cobrança contínua no Learner Lab. Não há NAT Gateway nem Load Balancer.
+Os Secrets AWS do Learner Lab expiram. Atualize os três antes de cada execução iniciada após expiração. Não cole esses valores em arquivos do repositório, issues ou mensagens.
 
-## Iniciar o deploy
+## 3. Execute o provisionamento
 
-O `user_data` instala Docker, Git e Docker Compose, habilita SSM Agent e clona o repositório para `/opt/factoryhub`. Depois que a EC2 aparecer como **Online** em Systems Manager → Fleet Manager / Managed nodes, o GitHub Actions pode executar o workflow **Build, publish and deploy through SSM** (`workflow_dispatch`; enable automatic deploy on pushes to `main` by setting the `SSM_DEPLOY_ENABLED=true` repository variable). O workflow publica imagens Docker Hub com tag do commit e envia `AWS-RunShellScript` por SSM para executar `docker compose pull` e `up -d`.
+1. Confirme que o bucket existe, tem bloqueio público e versionamento habilitado.
+2. Confirme que os cinco Secrets e as cinco Repository variables acima estão configurados.
+3. Inicie ou renove o Learner Lab e atualize os Secrets AWS se necessário.
+4. Acesse **Actions → Provisionar infraestrutura AWS → Run workflow**.
+5. O workflow aplica o plano criado no mesmo job.
 
-Configure no repositório GitHub:
+> **Atenção:** iniciar o workflow executa o `apply` automaticamente depois do `plan`; isso cria recursos AWS e pode gerar cobranças. Confira a configuração e as permissões antes de clicar em **Run workflow**.
 
-- Secrets `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`.
-- Secrets temporários `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` do Learner Lab.
-- Variable opcional `AWS_REGION` (padrão `us-east-1`).
+O workflow usa Terraform 1.10.5, executa `init`, `fmt -check`, `validate`, `plan` e `apply`, e impede duas execuções concorrentes. Se o bucket não existir, o versionamento estiver desativado ou faltar configuração, a execução para antes do `plan`/`apply`.
 
-As chaves STS do Learner Lab expiram; atualize os secrets antes de cada execução se necessário. O Terraform é executado localmente porque o state é local; não publique `terraform.tfstate`, `terraform.tfplan`, `terraform.tfvars` nem os arquivos `.zip` gerados.
+O backend guarda state e lock no S3. O principal AWS usado pelo GitHub Actions precisa de `s3:ListBucket`, `s3:GetBucketLocation`, `s3:GetBucketVersioning`, leitura/escrita do objeto `factoryhub/terraform.tfstate` e leitura/escrita/remoção do arquivo de lock `factoryhub/terraform.tfstate.tflock`, além das permissões AWS de provisionamento. Restrinja essas permissões ao bucket e aos objetos do Factory Hub quando o ambiente permitir.
 
-Após aplicar, o output `frontend_url` aponta para o portal HTTP na porta 80. A porta 8086 do InfluxDB aceita somente tráfego originado da Lambda; PostgreSQL 5432 fica restrito à EC2. Nenhum SSH, Java 8080 ou Flask 5000 é exposto publicamente. O portal ainda usa HTTP; não há certificado TLS/HTTPS de entrada configurado.
+> **Migração de state:** este workspace não contém um `terraform.tfstate` local. Se os recursos já tiverem sido criados por outro workspace/estado, migre esse state para o S3 antes de executar o workflow. Um state remoto vazio não deve ser usado para recriar recursos existentes.
 
-## Destruir
+## Custos e rede
 
-Para encerrar a infraestrutura e cobranças, revise e execute:
+A configuração inclui EC2 `t3.small`, RDS PostgreSQL `db.t3.micro` Single-AZ e um endpoint de interface de CloudWatch Logs, além de SQS, Lambda e rede. Esses serviços podem gerar cobrança no Learner Lab. Não há NAT Gateway nem Load Balancer.
 
-```powershell
-terraform plan -destroy -out destroy.tfplan
-terraform apply destroy.tfplan
-```
+O output `frontend_url` aponta para o portal HTTP na porta 80. InfluxDB na porta 8086 aceita tráfego da Lambda; PostgreSQL 5432 aceita conexões da EC2. Java 8080, Flask 5000 e SSH 22 não são expostos publicamente. Não há TLS de entrada configurado.
 
-A destruição remove o RDS sem snapshot final (`skip_final_snapshot=true`), as filas e os recursos de rede. Faça backup dos dados necessários antes. Volumes da EC2 também serão removidos.
+## Deploy da aplicação via SSM
+
+Após o provisionamento, aguarde a EC2 aparecer **Online** no Systems Manager. O workflow `.github/workflows/deploy-ssm.yml` publica as imagens Docker Hub e envia `AWS-RunShellScript` via SSM para executar `docker compose pull` e `up -d`.
+
+O deploy pode ser acionado manualmente. Para ativar deploy automático após pushes em `main`, configure também a Repository variable `SSM_DEPLOY_ENABLED=true`. Atualize as credenciais AWS temporárias no GitHub sempre que expirarem.
+
+## Destruir a infraestrutura
+
+A destruição deve usar o mesmo backend e state remoto. Faça backup dos dados necessários e execute um workflow próprio de destroy, ou rode localmente com as credenciais válidas, o backend inicializado e o mesmo state. A remoção apaga o RDS sem snapshot final e os dados nos volumes da EC2; o bucket de state deve ser preservado.

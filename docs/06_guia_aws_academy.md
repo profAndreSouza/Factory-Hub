@@ -9,15 +9,9 @@
 1. Acesse o **AWS Academy** e entre no módulo **Learner Lab**.
 2. Clique no botão **"Start Lab"**. Aguarde o círculo de status ao lado do botão mudar de vermelho para **verde** com a indicação de tempo restante (geralmente 4 horas).
 3. Clique em **"AWS Details"** ao lado do botão de status.
-4. Na seção **AWS CLI**, copie o bloco de credenciais de sessão temporárias:
-   ```ini
-   [default]
-   aws_access_key_id=ASIA...
-   aws_secret_access_key=...
-   aws_session_token=IQoJ...
-   ```
-5. No seu computador local, cole essas credenciais no arquivo `~/.aws/credentials` (no Linux/macOS) ou `%USERPROFILE%\.aws\credentials` (no Windows).
-6. Não é necessário baixar chave SSH para provisionar ou fazer deploy. O Factory Hub usa AWS Systems Manager (SSM) e não abre a porta 22.
+4. Na seção **AWS CLI**, copie as três credenciais temporárias para os GitHub Secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN`. Atualize os Secrets quando a sessão expirar.
+5. Crie pela AWS Console o bucket S3 de state indicado pela variável `TF_STATE_BUCKET`; habilite bloqueio de acesso público, versionamento e criptografia. O bucket precisa existir antes do primeiro workflow Terraform.
+6. O provisionamento ocorre pelo GitHub Actions; não é necessário configurar credenciais AWS no computador local. Não é necessário baixar chave SSH: o deploy usa Systems Manager e não abre a porta 22.
 
 ---
 
@@ -31,12 +25,7 @@
 ### Como Resolver:
 1. No console AWS, confira o instance profile da EC2 e as roles de execução da Lambda e da regra IoT.
 2. Confirme que o perfil EC2 permite SSM Agent (`AmazonSSMManagedInstanceCore` ou permissões equivalentes), a role Lambda confia em `lambda.amazonaws.com` e a role IoT confia em `iot.amazonaws.com`.
-3. Copie os nomes/ARNs para `terraform/terraform.tfvars`:
-   ```hcl
-   ec2_instance_profile_name = "LabRole"
-   iot_sqs_role_arn = "arn:aws:iam::123456789012:role/FactoryHubIoTRule"
-   lambda_execution_role_arn = "arn:aws:iam::123456789012:role/FactoryHubLambdaExecution"
-   ```
+3. Cadastre os valores nas Repository variables `EC2_INSTANCE_PROFILE_NAME`, `IOT_SQS_ROLE_ARN` e `LAMBDA_EXECUTION_ROLE_ARN`. O workflow os passa ao Terraform por variáveis `TF_VAR_*`.
 
 Não presuma que `LabRole` atende todos esses serviços: a conta precisa permitir `iam:PassRole`, e as roles precisam das permissões descritas em `terraform/README.md`. Se o laboratório não fornecer perfis compatíveis nem permitir criá-los/ajustá-los, peça ao instrutor para habilitá-los antes do Terraform.
 

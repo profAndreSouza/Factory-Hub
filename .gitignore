@@ -38,6 +38,11 @@ terraform.tfvars
 *.tfplan
 *.zip
 
+# Local secrets
+.env
+.env.*
+!.env.example
+
 # IDEs & SO
 .idea/
 .vscode/
