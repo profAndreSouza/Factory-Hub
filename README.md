@@ -232,6 +232,7 @@ Factory Hub/
 └── .github/
     └── workflows/
         ├── terraform.yml          # Provisionamento manual com state S3
+        ├── publish-dockerhub.yml  # Publicação manual das imagens no Docker Hub
         └── deploy-ssm.yml         # Deploy manual por SSM das imagens já publicadas
 ```
 
