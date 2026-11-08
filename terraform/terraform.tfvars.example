@@ -1,0 +1,7 @@
+aws_region                  = "us-east-1"
+environment                 = "academy"
+ec2_instance_profile_name   = "REPLACE_WITH_EXISTING_EC2_INSTANCE_PROFILE"
+iot_sqs_role_arn             = "arn:aws:iam::123456789012:role/REPLACE_WITH_IOT_SQS_ROLE"
+lambda_execution_role_arn   = "arn:aws:iam::123456789012:role/REPLACE_WITH_LAMBDA_EXECUTION_ROLE"
+dockerhub_username          = "seu-usuario-publico"
+app_http_cidrs              = ["0.0.0.0/0"]

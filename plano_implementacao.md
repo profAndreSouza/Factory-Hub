@@ -22,7 +22,7 @@ Ao executar projetos no **AWS Academy Learner Lab Sandbox**, atente-se às segui
 
 | Limitação do Sandbox | Impacto no Projeto | Solução Adotada |
 |---|---|---|
-| **Sem permissão `iam:CreateRole`** | Falha ao tentar criar IAM roles pelo Terraform | Usar a role pré-existente: `LabRole` (`arn:aws:iam::<ACCOUNT_ID>:role/LabRole`) ou `iam_instance_profile = "LabRole"`. |
+| **IAM restrito** | O Learner Lab pode bloquear criacao/alteracao de roles | Informar perfis/roles preexistentes compativeis e validar `iam:PassRole`; nao assumir que `LabRole` atende todos os servicos. |
 | **Orçamento fixo (~$100)** | Créditos expiram e a conta é suspensa se gastar demais | Não provisionar NAT Gateways (~$32/mês), AWS Timestream ou Load Balancers gerenciados (~$20/mês). |
 | **Banco de Séries Temporais** | AWS Timestream não possui Free Tier robusto e é tarifado por query | Rodar **TimescaleDB** ou **InfluxDB** em container Docker dentro da própria instância EC2 (custo zero adicional). |
 | **Banco Relacional** | RDS Aurora ou instâncias grandes estouram o limite | Provisionar uma instância **Amazon RDS PostgreSQL** `db.t3.micro` Single-AZ no Free Tier. |
@@ -30,74 +30,15 @@ Ao executar projetos no **AWS Academy Learner Lab Sandbox**, atente-se às segui
 
 ---
 
-## Fase 1: Infraestrutura como Código com Terraform
+## Fase 1: Infraestrutura como Codigo com Terraform
 
-**Meta da Fase:** Criar a estrutura de nuvem completa com um único `terraform apply`.
+**Meta:** provisionar a topologia AWS por APIs HTTPS, sem acesso SSH de entrada.
 
-### 1.1. Arquitetura Terraform
-Na pasta `terraform/`, estruture os arquivos:
-- `provider.tf`: Configuração do provider AWS (região `us-east-1`).
-- `vpc.tf`: VPC, Internet Gateway, Subnet pública e Route Table.
-- `security_groups.tf`: Security groups para SSH (22), Web (80, 443, 8080, 5000) e RDS (5432 apenas da EC2).
-- `sqs.tf`: Fila `factory-telemetry-queue` e sua respectiva Dead Letter Queue (`factory-telemetry-dlq`).
-- `iot.tf`: Regra de tópico do AWS IoT Core que encaminha dados diretamente para a fila SQS.
-- `lambda.tf`: Função Lambda, política de execução e event source mapping da SQS, incluindo configuração de lote, retentativas e DLQ.
-- `rds.tf`: Instância PostgreSQL `db.t3.micro`.
-- `ec2.tf`: Instância `t3.small` associada à `LabRole`.
+A implementacao executavel e o procedimento de revisao/aplicacao estao em [`terraform/README.md`](terraform/README.md). A pasta `terraform/` define VPC, EC2 com Docker e SSM Agent, RDS privado, SQS/DLQ, IoT Rule e Lambda consumidora. O fluxo e IoT Core -> SQS -> Lambda -> InfluxDB na EC2; Java permanece responsavel pela API e consolidacoes.
 
-### 1.2. Exemplo de Configuração de Recursos Chave
+A EC2 nao recebe trafego na porta 22. A interface web usa 80; a Lambda acessa InfluxDB em 8086; PostgreSQL 5432 aceita conexoes apenas da EC2. SSM Agent inicia conexoes HTTPS/443 para Systems Manager. O Terraform recebe nomes/ARNs de perfis e roles existentes: `ec2_instance_profile_name`, `iot_sqs_role_arn` e `lambda_execution_role_arn`. Nao presuma que a `LabRole` atende os tres servicos.
 
-#### `terraform/ec2.tf`
-```hcl
-resource "aws_instance" "app_server" {
-  ami                  = "ami-0c7217cdde317cfec" # Amazon Linux 2023 em us-east-1
-  instance_type        = "t3.small"
-  iam_instance_profile = "LabRole" # Utiliza a role nativa do AWS Academy
-  key_name             = var.key_pair_name
-  subnet_id            = aws_subnet.public.id
-  vpc_security_group_ids = [aws_security_group.app_sg.id]
-
-  user_data = <<-EOF
-              #!/bin/bash
-              dnf update -y
-              dnf install -y docker git
-              systemctl enable --now docker
-              usermod -aG docker ec2-user
-              
-              # Instalar Docker Compose v2
-              mkdir -p /usr/local/lib/docker/cli-plugins
-              curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
-                -o /usr/local/lib/docker/cli-plugins/docker-compose
-              chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-              EOF
-
-  tags = {
-    Name = "factoryhub-server"
-  }
-}
-```
-
-#### `terraform/iot_sqs_rule.tf`
-```hcl
-resource "aws_sqs_queue" "telemetry_queue" {
-  name                      = "factoryhub-telemetria-queue"
-  message_retention_seconds = 86400 # 1 dia
-}
-
-resource "aws_iot_topic_rule" "telemetry_to_sqs" {
-  name        = "FactoryHubTelemetryRule"
-  description = "Roteia telemetria industrial do IoT Core para a fila SQS"
-  enabled     = true
-  sql         = "SELECT * FROM 'industria/smartn1/telemetria'"
-  sql_version = "2016-03-23"
-
-  sqs {
-    queue_url = aws_sqs_queue.telemetry_queue.id
-    role_arn  = var.lab_role_arn # arn:aws:iam::<ACCOUNT_ID>:role/LabRole
-    use_base64 = false
-  }
-}
-```
+Antes de qualquer `apply`, confirme credenciais validas com `aws sts get-caller-identity`, revise o plano e confirme que as roles permitem os servicos necessarios. Nao publique `terraform.tfstate`, `terraform.tfvars` ou planos.
 
 ---
 
@@ -284,98 +225,13 @@ volumes:
   tsdb_data:
 ```
 
-### 6.2. Workflow do GitHub Actions (`.github/workflows/ci-cd.yml`)
-```yaml
-name: FactoryHub CI/CD Pipeline
+### 6.2. Workflow do GitHub Actions (`.github/workflows/deploy-ssm.yml`)
 
-on:
-  push:
-    branches: [ "main" ]
-
-jobs:
-  test:
-    name: Run Unit & Integration Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      - name: Test Java Backend
-        run: |
-          cd backend-java
-          mvn clean test
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Test Python AI Service
-        run: |
-          cd ml-service
-          pip install -r requirements.txt pytest
-          pytest tests/
-
-  build-and-push:
-    name: Build & Push Docker Images
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build & Push Backend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend-java
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-backend:latest
-
-      - name: Build & Push AI Service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./ml-service
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-ai-service:latest
-
-      - name: Build & Push Frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend-react
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-frontend:latest
-
-  deploy:
-    name: Deploy to AWS EC2
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: SSH Deploy Command
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd ~/factoryhub
-            docker compose pull
-            docker compose up -d --remove-orphans
-            docker image prune -f
-```
-
----
+O workflow executavel e a fonte de verdade. Ele publica imagens versionadas no Docker Hub e executa o deploy por `ssm:SendCommand`; nenhuma chave SSH ou porta 22 e necessaria. Configure `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN` como secrets. Use `workflow_dispatch` para deploy manual; apos validar a EC2 Online no SSM, defina a variavel `SSM_DEPLOY_ENABLED=true` para habilitar deploy automatico nos pushes em `main`.
 
 ## Critérios de Validação e Checklist Final
 
-- [ ] **Infraestrutura:** `terraform apply` executado com sucesso no AWS Academy usando a `LabRole`.
+- [ ] **Infraestrutura:** `terraform apply` executado com sucesso no AWS Academy usando roles/perfis preexistentes compativeis, com SSM Online.
 - [ ] **Simulador Wokwi:** ESP32 enviando telemetria em formato JSON estável.
 - [ ] **Roteamento IoT:** IoT Topic Rule entregando mensagens na fila SQS sem rejeição.
 - [ ] **Consumo SQS:** Event source mapping acionando a Lambda; mensagens processadas e removidas da fila após persistência no InfluxDB, com falhas encaminhadas à DLQ.
@@ -383,5 +239,5 @@ jobs:
 - [ ] **Inteligência Artificial:** Endpoint `/predict` da API Flask respondendo com probabilidade de anomalia válida.
 - [ ] **Consolidação de KPIs:** Métricas de Disponibilidade, Performance, Qualidade e OEE calculadas e gravadas no PostgreSQL.
 - [ ] **Visualização:** Frontend React exibindo telemetria e KPIs atualizados.
-- [ ] **CI/CD:** Commit na branch `main` executa testes, gera imagens no Docker Hub e atualiza a EC2 automaticamente.
+- [ ] **CI/CD:** Commit na branch `main` executa testes, gera imagens no Docker Hub e atualiza a EC2 por SSM Run Command.
 

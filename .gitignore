@@ -35,6 +35,8 @@ crash.log
 terraform.tfvars
 *.pem
 *.ppk
+*.tfplan
+*.zip
 
 # IDEs & SO
 .idea/

@@ -73,11 +73,13 @@ O pipeline do GitHub Actions impede o merge para `main` se:
 O arquivo `.github/workflows/ci-cd.yml` orquestra o ciclo completo:
 1. **Job `test`:** Executa a matriz de testes para Java (Maven) e Python (Pytest).
 2. **Job `build-and-push`:** Constrói as imagens Docker multi-stage e publica no Docker Hub com duas tags: `latest` e o SHA do commit (`sha-${{ github.sha }}`).
-3. **Job `deploy`:** Conecta via SSH na instância EC2 e executa:
+3. **Job `deploy`:** Autentica nas APIs AWS com as credenciais temporárias do Learner Lab, envia um `AWS-RunShellScript` pelo Systems Manager Run Command e acompanha o resultado. A EC2 recebe o comando pelo SSM Agent usando apenas conexões de saída HTTPS/443; a porta 22 não é aberta. O comando executa:
    ```bash
-   cd ~/factoryhub
-   docker compose pull
-   docker compose up -d --remove-orphans
-   docker image prune -f
+   cd /opt/factoryhub
+   git fetch origin main && git reset --hard origin/main
+   IMAGE_TAG=sha-${GITHUB_SHA} docker compose -f docker-compose.cloud.yml pull
+   IMAGE_TAG=sha-${GITHUB_SHA} docker compose -f docker-compose.cloud.yml up -d --remove-orphans
    ```
+
+O workflow está em `.github/workflows/deploy-ssm.yml`. O GitHub Actions precisa dos secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `DOCKERHUB_USERNAME` e `DOCKERHUB_TOKEN`; renove as credenciais AWS Academy quando expirarem.
 

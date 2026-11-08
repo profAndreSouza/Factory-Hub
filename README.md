@@ -2,7 +2,7 @@
 
 > **Projeto Integrador Multidisciplinar** conectando as disciplinas de **Automação Industrial**, **Ciência de Dados**, **Computação em Nuvem** e **Integração e Entrega Contínua (DevOps)**, dimensionado para o ambiente **AWS Academy Learner Lab**.
 
-> **Estado atual da integração:** o frontend chama somente a API Java. No Compose local, o InfluxDB é inicializado com 14 dias de telemetria de demonstração; os endpoints Java de leituras e últimas medições consultam esse banco, e o Flask usa o histórico do InfluxDB para treinar a Random Forest. Cadastro de máquinas, OEE e alertas continuam mockados. IoT Core, SQS/Lambda, RDS, Terraform e CI/CD ainda representam a arquitetura planejada.
+> **Estado atual da integracao:** frontend -> API Java; no Compose local, InfluxDB recebe telemetria de demonstracao e Flask treina a Random Forest com historico do InfluxDB. Cadastro de maquinas, OEE e alertas continuam mockados. A infraestrutura AWS tem configuracao Terraform e deploy por SSM preparados, mas ainda nao foi aplicada; as credenciais temporarias atuais foram rejeitadas pelo STS e as roles do Learner Lab precisam ser confirmadas.
 
 ---
 
@@ -17,7 +17,7 @@ O **Factory Hub** é uma plataforma distribuída de manufatura inteligente inspi
 │                             FACTORY HUB ECOSYSTEM                                │
 ├────────────────────────┬────────────────────────┬────────────────────────────────┤
 │  Automação Industrial  │    Ciência de Dados    │       Computação em Nuvem      │
-│  • ESP32 (Wokwi)       │  • Metodologia CRISP-DM│  • AWS Academy (LabRole)       │
+│  • ESP32 (Wokwi)       │  • Metodologia CRISP-DM│  • AWS Academy (perfis IAM compativeis)       │
 │  • MQTT & Node-RED     │  • CRISP-DM + Random Forest │  • AWS IoT Core + Amazon SQS   │
 │  • Sinais OT (Sensores)│  • API Flask Predição  │  • EC2 + Docker + RDS / IaC TF │
 ├────────────────────────┴────────────────────────┴────────────────────────────────┤
@@ -69,16 +69,19 @@ flowchart TB
         TEST[Testes e Quality Gates]
         BUILD[Build das imagens Docker]
         DH[Docker Hub<br/>Imagens versionadas]
-        DEPLOY[Deploy via SSH]
-        TF[Terraform — IaC<br/>Credenciais com LabRole]
+        DEPLOY[Deploy via SSM Run Command]
+        TF[Terraform — IaC<br/>Credenciais AWS tempor?rias]
         AWS[Infraestrutura AWS]
 
         REPO --> GHA
         GHA --> TEST
         TEST -->|Aprovado| BUILD
         BUILD -->|Push| DH
-        DH -->|Publicação concluída| DEPLOY
-        TF -->|Provisiona e configura| AWS
+        DH -->|Pull HTTPS| EC2
+        GHA -->|API HTTPS / 443| DEPLOY
+        DEPLOY -.->|SSM Run Command| EC2
+        TF -->|APIs AWS HTTPS / 443| AWS
+        AWS -.->|Provisiona| EC2
     end
 
     ESP -->|Telemetria MQTT| IOT
@@ -126,19 +129,7 @@ flowchart TB
 
 ## 4. Diretrizes Críticas para AWS Academy Learner Lab
 
-> [!WARNING]
-> **Limitações do AWS Academy Learner Lab:**
-> 1. **Sem criação de IAM Roles (`iam:CreateRole` desabilitado):** Todos os serviços (EC2, etc.) devem utilizar a role já existente:
->    ```text
->    arn:aws:iam::<ACCOUNT_ID>:role/LabRole
->    ```
->    ou o perfil de instância `LabInstanceProfile`.
-> 2. **Orçamento Fixo ($50 a $100):** É mandatório evitar serviços de alta tarifação contínua como NAT Gateways gerenciados (~$32/mês), AWS Timestream (queries tarifadas) e Application Load Balancers.
-> 3. **Solução Econômica Adotada no Factory Hub:**
->    - **Rede Simplificada:** Sub-rede pública na VPC com Security Group restritivo direto na EC2 (dispensa NAT Gateway pago).
->    - **Banco Temporal Conteinerizado:** Rodar o **TimescaleDB** ou **InfluxDB** como container Docker na mesma EC2 do backend (custo adicional: $0).
->    - **Instância Única:** Utilizar uma instância `t3.small` (2 vCPU, 2GB RAM) suficiente para rodar os 4 containers da aplicação via Docker Compose.
->    - **RDS no Free Tier:** Utilizar `db.t3.micro` Single-AZ com PostgreSQL.
+> **Estado do provisionamento:** a configuracao Terraform e o deploy por SSM estao preparados, mas nenhuma infraestrutura AWS foi aplicada nesta sessao. As credenciais temporarias locais foram rejeitadas pelo STS e precisam ser renovadas. Confirme tambem se o Learner Lab fornece os perfis/roles preexistentes exigidos para EC2/SSM, IoT Rule e Lambda. A EC2 nao abre a porta 22. Veja [`terraform/README.md`](terraform/README.md) para requisitos, custos e procedimento.
 
 ---
 
@@ -204,10 +195,13 @@ Factory Hub/
 │       └── flows.json             # Fluxo exportado do Node-RED para injeção de falhas
 │
 ├── terraform/                     # Computação em Nuvem (IaC AWS Academy)
-│   ├── main.tf                    # Declaração dos recursos (VPC, SQS, RDS, EC2)
-│   ├── variables.tf               # Variáveis parametrizadas
-│   ├── outputs.tf                 # Endpoints gerados (IP EC2, Host RDS, URL SQS)
-│   └── terraform.tfvars.example   # Exemplo de variáveis (LabRole ARN)
+│   ├── main.tf                    # Dados de região, AMI e credenciais geradas
+│   ├── network.tf                 # VPC, sub-redes, rotas e Internet Gateway
+│   ├── compute.tf                 # EC2 sem SSH, bootstrap Docker e SSM
+│   ├── storage.tf                 # RDS PostgreSQL privado
+│   ├── ingestion.tf               # IoT Rule, SQS, Lambda e event source mapping
+│   ├── security_groups.tf         # Regras web, InfluxDB, Lambda e RDS
+│   └── terraform.tfvars.example   # Perfis IAM preexistentes e Docker Hub
 │
 ├── ml-service/                    # Ciência de Dados (Python Flask + ML)
 │   ├── factoryhub_ml/             # API, fonte de treino mockada e pipeline Random Forest

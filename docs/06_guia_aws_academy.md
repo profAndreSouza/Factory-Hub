@@ -17,31 +17,28 @@
    aws_session_token=IQoJ...
    ```
 5. No seu computador local, cole essas credenciais no arquivo `~/.aws/credentials` (no Linux/macOS) ou `%USERPROFILE%\.aws\credentials` (no Windows).
-6. Faça o download da sua chave privada SSH clicando em **"Download SSH Key"** (salve como `labsuser.pem`).
+6. Não é necessário baixar chave SSH para provisionar ou fazer deploy. O Factory Hub usa AWS Systems Manager (SSM) e não abre a porta 22.
 
 ---
 
-## 2. Regra de Ouro do IAM: A `LabRole`
+## 2. Regra de Ouro do IAM: perfis e roles preexistentes
 
 > [!CRITICAL]
-> No AWS Academy Learner Lab, estudantes **NÃO possuem permissão** para criar novos perfis ou políticas IAM (`iam:CreateRole`, `iam:CreatePolicy` ou `iam:AttachRolePolicy`).
+> No AWS Academy Learner Lab, estudantes podem não possuir permissão para criar novos perfis ou políticas IAM (`iam:CreateRole`, `iam:CreatePolicy` ou `iam:AttachRolePolicy`).
 > 
 > Qualquer comando `terraform apply` que tente criar uma `aws_iam_role` falhará com erro de `AccessDenied`.
 
 ### Como Resolver:
-1. No console da AWS, acesse o serviço **IAM** e clique em **Roles**.
-2. Localize a role chamada **`LabRole`** e copie seu ARN completo:
-   ```text
-   arn:aws:iam::123456789012:role/LabRole
-   ```
-3. No arquivo `terraform/terraform.tfvars`, defina:
+1. No console AWS, confira o instance profile da EC2 e as roles de execução da Lambda e da regra IoT.
+2. Confirme que o perfil EC2 permite SSM Agent (`AmazonSSMManagedInstanceCore` ou permissões equivalentes), a role Lambda confia em `lambda.amazonaws.com` e a role IoT confia em `iot.amazonaws.com`.
+3. Copie os nomes/ARNs para `terraform/terraform.tfvars`:
    ```hcl
-   lab_role_arn = "arn:aws:iam::123456789012:role/LabRole"
+   ec2_instance_profile_name = "LabRole"
+   iot_sqs_role_arn = "arn:aws:iam::123456789012:role/FactoryHubIoTRule"
+   lambda_execution_role_arn = "arn:aws:iam::123456789012:role/FactoryHubLambdaExecution"
    ```
-4. Na criação de instâncias EC2, utilize:
-   ```hcl
-   iam_instance_profile = "LabRole"
-   ```
+
+Não presuma que `LabRole` atende todos esses serviços: a conta precisa permitir `iam:PassRole`, e as roles precisam das permissões descritas em `terraform/README.md`. Se o laboratório não fornecer perfis compatíveis nem permitir criá-los/ajustá-los, peça ao instrutor para habilitá-los antes do Terraform.
 
 ---
 

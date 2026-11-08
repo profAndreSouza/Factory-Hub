@@ -1,0 +1,90 @@
+services:
+  influxdb:
+    image: influxdb:2.7
+    restart: unless-stopped
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: factoryhub
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD:?INFLUXDB_PASSWORD is required}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG:-factoryhub}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET:-telemetry}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN:?INFLUXDB_TOKEN is required}
+    ports:
+      - "8086:8086"
+    volumes:
+      - influx-data:/var/lib/influxdb2
+      - influx-config:/etc/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+  influx-seed:
+    image: ${DOCKERHUB_USERNAME:?DOCKERHUB_USERNAME is required}/factoryhub-ml-service:${IMAGE_TAG:-latest}
+    command: ["python", "-m", "factoryhub_ml.seed_influx"]
+    restart: "no"
+    environment:
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_ORG: ${INFLUXDB_ORG:-factoryhub}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-telemetry}
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:?INFLUXDB_TOKEN is required}
+      INFLUXDB_SEED_DAYS: ${INFLUXDB_SEED_DAYS:-14}
+    depends_on:
+      influxdb:
+        condition: service_healthy
+
+  ml-service:
+    image: ${DOCKERHUB_USERNAME:?DOCKERHUB_USERNAME is required}/factoryhub-ml-service:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      ML_MODEL_PATH: /app/model/maintenance_model_influx.joblib
+      ML_TRAINING_SOURCE: influx
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_ORG: ${INFLUXDB_ORG:-factoryhub}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-telemetry}
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:?INFLUXDB_TOKEN is required}
+    volumes:
+      - ml-models:/app/model
+    expose:
+      - "5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    depends_on:
+      influx-seed:
+        condition: service_completed_successfully
+
+  backend-java:
+    image: ${DOCKERHUB_USERNAME:?DOCKERHUB_USERNAME is required}/factoryhub-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: mock,influx
+      SERVER_PORT: 8080
+      ML_SERVICE_BASE_URL: http://ml-service:5000
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_ORG: ${INFLUXDB_ORG:-factoryhub}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-telemetry}
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:?INFLUXDB_TOKEN is required}
+    depends_on:
+      ml-service:
+        condition: service_healthy
+      influx-seed:
+        condition: service_completed_successfully
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME:?DOCKERHUB_USERNAME is required}/factoryhub-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend-java:
+        condition: service_healthy
+
+volumes:
+  influx-data:
+  influx-config:
+  ml-models:

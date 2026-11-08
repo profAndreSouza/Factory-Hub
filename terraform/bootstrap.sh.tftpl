@@ -1,0 +1,38 @@
+#!/bin/bash
+set -euo pipefail
+exec > >(tee /var/log/factoryhub-bootstrap.log | logger -t factoryhub-bootstrap -s 2>/dev/console) 2>&1
+
+dnf update -y
+dnf install -y docker git curl
+systemctl enable --now docker
+usermod -aG docker ec2-user
+
+# Amazon Linux 2023 images include SSM Agent; ensure the service is enabled.
+if ! systemctl list-unit-files | grep -q '^amazon-ssm-agent.service'; then
+  dnf install -y amazon-ssm-agent
+fi
+systemctl enable --now amazon-ssm-agent
+
+install -d -o ec2-user -g ec2-user /opt/factoryhub
+if [ ! -d /opt/factoryhub/.git ]; then
+  git clone --depth 1 ${jsonencode(repository_url)} /opt/factoryhub
+fi
+
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl --fail --location --retry 5 \
+  https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+  --output /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+cat > /opt/factoryhub/.env <<'FACTORYHUB_ENV'
+DOCKERHUB_USERNAME=${dockerhub_user}
+IMAGE_TAG=latest
+INFLUXDB_ORG=${influx_org}
+INFLUXDB_BUCKET=${influx_bucket}
+INFLUXDB_TOKEN=${influx_token}
+INFLUXDB_PASSWORD=${influx_password}
+INFLUXDB_SEED_DAYS=${seed_days}
+FACTORYHUB_ENV
+
+chown ec2-user:ec2-user /opt/factoryhub/.env
+chmod 600 /opt/factoryhub/.env

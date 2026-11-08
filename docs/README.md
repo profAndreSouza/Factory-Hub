@@ -13,7 +13,7 @@ Esta pasta reúne **toda a base conceitual, referências teóricas, especificaç
 | 📄 **[03_computacao_em_nuvem.md](./03_computacao_em_nuvem.md)** | Arquitetura em Nuvem AWS, VPC, IoT Core, fila SQS, EC2, RDS e templates de Infraestrutura como Código com Terraform. | **Computação em Nuvem (60h)** |
 | 📄 **[04_devops_ci_cd.md](./04_devops_ci_cd.md)** | Princípios CALMS, fluxo GitFlow, Conventional Commits, SemVer, pirâmide de testes, Docker multi-stage e pipeline GitHub Actions. | **DevOps & CI/CD (40h)** |
 | 📄 **[05_contratos_e_especificacoes.md](./05_contratos_e_especificacoes.md)** | Dicionário de dados, schemas JSON (MQTT), contratos OpenAPI/REST (Flask & Java) e esquema de banco de dados. | **Arquitetura de Software** |
-| 📄 **[06_guia_aws_academy.md](./06_guia_aws_academy.md)** | Manual de sobrevivência no AWS Academy Learner Lab: uso da `LabRole`, restrições de orçamento ($100), SSH e boas práticas. | **Operação Cloud** |
+| [06_guia_aws_academy.md](./06_guia_aws_academy.md) | Perfis IAM, Systems Manager sem SSH, orcamento e boas praticas do Learner Lab. | Operacao Cloud |
 | 📘 **[guia_passo_a_passo_gitflow.md](./guia_passo_a_passo_gitflow.md)** | Guia prático de comandos CLI para trabalhar com branches de feature, release, hotfix e rebase. | **DevOps** |
 | 📘 **[padrao_de_commits.md](./padrao_de_commits.md)** | Manual de Conventional Commits (`feat`, `fix`, `refactor`, `breaking changes`). | **DevOps** |
 | 📘 **[versionamento_semantico.md](./versionamento_semantico.md)** | Regras de Versionamento Semântico (`MAJOR.MINOR.PATCH`). | **DevOps** |
