@@ -48,6 +48,7 @@ interface BackendHealthService {
   name: string;
   status: string;
   latency_ms?: number;
+  source?: string;
 }
 
 interface BackendHealth {
@@ -61,6 +62,7 @@ export async function getServiceHealth(): Promise<ServiceHealth[]> {
     name: service.name,
     status: normalizeHealthStatus(service.status),
     latency_ms: service.latency_ms,
+    source: service.source,
   }));
 }
 

@@ -427,6 +427,7 @@ export const DataSciencePage: React.FC = () => {
                       <div className="text-xs text-gray-400 mt-2 font-mono">
                         Modelo: {aiResult.modelo_versao}
                       </div>
+                      {aiResult.source && <div className="text-[10px] text-gray-400 mt-1">Fonte: {aiResult.source === 'MOCK' ? 'simulação do backend' : aiResult.source}</div>}
                     </div>
                   </div>
                 ) : (

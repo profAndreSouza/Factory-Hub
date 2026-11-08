@@ -9,7 +9,6 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': 'http://localhost:8080',
-      '/predict': 'http://localhost:5000',
     },
   }
 });

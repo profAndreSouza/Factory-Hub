@@ -50,11 +50,13 @@ export interface PredictResponse {
   probabilidade_falha: number;
   recomendacao: string;
   modelo_versao: string;
+  source?: 'MOCK' | 'FLASK' | string;
 }
 
 export interface ServiceHealth {
   name: string;
   status: 'online' | 'offline' | 'degraded' | 'unknown';
   latency_ms?: number;
+  source?: 'LIVE' | 'MOCK' | string;
 }
 

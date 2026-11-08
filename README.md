@@ -2,6 +2,8 @@
 
 > **Projeto Integrador Multidisciplinar** conectando as disciplinas de **Automação Industrial**, **Ciência de Dados**, **Computação em Nuvem** e **Integração e Entrega Contínua (DevOps)**, dimensionado para o ambiente **AWS Academy Learner Lab**.
 
+> **Estado atual da integração:** o backend Java Spring Boot foi adicionado e já atende o frontend. Os dados de máquinas, OEE, alertas, telemetria, predição e status das dependências usam adapters mockados por padrão. Consulte [backend-java/README.md](./backend-java/README.md) para executar e ver a origem prevista de cada conjunto de dados.
+
 ---
 
 ## 1. Visão Geral do Projeto

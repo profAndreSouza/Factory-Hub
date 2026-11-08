@@ -116,6 +116,7 @@ O navegador envia a solicitação somente ao backend Java. O backend valida o pa
 **Requisição:** mesmo formato do contrato Flask, com `device_id`, `temperatura`, `vibracao` e `rpm`.
 
 **Resposta:** mesmo formato da resposta Flask, incluindo `status_previsto`, `probabilidade_falha`, `recomendacao` e `modelo_versao`.
+No perfil mock, o backend inclui `source: "MOCK"` e usa `modelo_versao: "mock-random-forest-v1"`. Na integração real, o adapter encaminhará a requisição ao Flask sem expor seu endereço ao navegador.
 
 ### 3.4. Saúde dos Serviços: `GET /api/v1/health`
 O backend agrega o estado dos componentes e fornece a lista exibida pelo frontend. Inclua pelo menos nome, estado e, quando disponível, latência. O backend é a única fonte do estado do Flask, banco, broker e demais serviços.
@@ -123,14 +124,28 @@ O backend agrega o estado dos componentes e fornece a lista exibida pelo fronten
 ```json
 {
   "services": [
-    { "name": "Backend Java", "status": "UP", "latency_ms": 12 },
-    { "name": "Flask AI", "status": "DEGRADED", "latency_ms": 310 },
-    { "name": "PostgreSQL", "status": "UP", "latency_ms": 8 }
+    { "name": "Backend Java", "status": "UP", "source": "LIVE" },
+    { "name": "Flask AI", "status": "DEGRADED", "source": "MOCK" },
+    { "name": "RDS PostgreSQL", "status": "UP", "source": "MOCK" },
+    { "name": "InfluxDB", "status": "UP", "source": "MOCK" }
   ]
 }
 ```
 
 Estados esperados: `UP`/`ONLINE`, `DEGRADED` e `DOWN`/`OFFLINE`. O frontend normaliza esses nomes para apresentação, sem gerar verificações de saúde locais.
+
+No perfil atual, somente o processo Java é consultado de verdade; os estados das dependências são exemplos marcados como `source: "MOCK"`.
+
+### 3.5. Adaptadores de dados no backend
+O perfil `mock` implementa os contratos sem conexões externas. Quando os serviços forem conectados, a origem prevista é:
+
+| Dados | Destino esperado |
+|---|---|
+| Máquinas, indicadores OEE e alertas | RDS PostgreSQL |
+| Série temporal recente | InfluxDB em container Docker |
+| Inferência de manutenção preditiva | Flask privado, chamado pelo backend Java |
+
+As interfaces de acesso a essas origens estão em `backend-java/.../application/port`; os adapters `infrastructure/mock` são os provedores atuais.
 
 ## 4. Esquema de Banco de Dados (RDS PostgreSQL)
 

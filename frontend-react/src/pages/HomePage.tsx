@@ -144,6 +144,7 @@ export const HomePage: React.FC = () => {
         <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
           <span>🔌</span> Status dos Serviços
         </h2>
+        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Os status são enviados pela API Java. Dependências marcadas como MOCK ainda não consultam os serviços reais.</p>
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
           {healthError ? (
             <div className="text-sm text-red-500">Não foi possível carregar os status enviados pelo backend.</div>
@@ -161,6 +162,7 @@ export const HomePage: React.FC = () => {
                   <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
                     {svc.name}
                   </div>
+                  {svc.source && <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${svc.source === 'MOCK' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>{svc.source}</span>}
                   <StatusBadge status={svc.status} size="sm" />
                   {svc.latency_ms !== undefined && (
                     <div className="text-xs text-gray-400">{svc.latency_ms} ms</div>
