@@ -144,6 +144,84 @@ export const CloudPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Terraform learning module */}
+          <section aria-labelledby="terraform-heading" className="space-y-4">
+            <div>
+              <h2 id="terraform-heading" className="text-base font-bold text-gray-800 dark:text-gray-200 mb-2">🏗️ Terraform — infraestrutura explicada passo a passo</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">Terraform é uma ferramenta de Infraestrutura como Código (IaC): você descreve o estado desejado da infraestrutura em arquivos de texto, revisa as mudanças e pede ao Terraform para reconciliar a nuvem com essa descrição. No Factory Hub, isso torna a topologia reproduzível, revisável por Git e mais fácil de recriar em outro laboratório.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {[
+                { step: '1', title: 'Descrever', text: 'Escreva recursos, entradas e saídas em HCL. O arquivo declara o que deve existir; não é uma sequência de cliques.' },
+                { step: '2', title: 'Planejar', text: 'O plan compara configuração, estado salvo e recursos observados. Ele mostra inclusões, alterações e remoções antes de aplicá-las.' },
+                { step: '3', title: 'Aplicar', text: 'O apply executa o plano usando o provider e as credenciais configuradas. Depois, o state registra a associação entre os blocos e os recursos reais.' },
+              ].map(item => <article key={item.step} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold mb-3">{item.step}</div>
+                <h3 className="font-bold text-sm text-gray-800 dark:text-gray-200 mb-1">{item.title}</h3>
+                <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-400">{item.text}</p>
+              </article>)}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <article className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+                <h3 className="font-bold text-sm text-gray-800 dark:text-gray-200 mb-2">Peças de um projeto Terraform</h3>
+                <dl className="space-y-2 text-xs leading-relaxed">
+                  {[
+                    ['Provider', 'Plugin que conversa com uma plataforma, como AWS. Define a região e integra as APIs do provedor.'],
+                    ['Resource', 'Um objeto que Terraform administra: VPC, subnet, security group, fila ou instância.'],
+                    ['Variable', 'Entrada configurável para não fixar região, CIDR, nome ou tamanho diretamente no recurso.'],
+                    ['Output', 'Valor útil apresentado após o apply, como IP público, endpoint de banco ou URL de fila.'],
+                    ['Data source', 'Consulta um recurso já existente sem declará-lo como propriedade deste projeto; útil para localizar a LabRole.'],
+                    ['Module', 'Conjunto reutilizável de recursos e interfaces. Ajuda a separar rede, aplicação e dados quando o projeto cresce.'],
+                  ].map(([term, definition]) => <div key={term} className="grid grid-cols-[100px_1fr] gap-2"><dt className="font-semibold text-orange-600 dark:text-orange-400">{term}</dt><dd className="text-gray-600 dark:text-gray-400">{definition}</dd></div>)}
+                </dl>
+              </article>
+
+              <article className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+                <h3 className="font-bold text-sm text-gray-800 dark:text-gray-200 mb-2">Exemplo comentado: EC2 na AWS Academy</h3>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">O exemplo ilustra a declaração. O nome da role existente, a AMI, a região e as permissões precisam ser conferidos no laboratório da turma.</p>
+                <pre className="overflow-x-auto rounded-lg bg-gray-950 text-green-300 p-4 text-[11px] leading-relaxed"><code>{`variable "ami_id" {\n  type = string\n}\n\nvariable "instance_type" {\n  type    = string\n  default = "t2.micro"\n}\n\nvariable "subnet_id" {\n  type = string\n}\n\n# Perfil já fornecido pela Academy.\n# Não crie uma role IAM nova no Learner Lab.\ndata "aws_iam_instance_profile" "lab" {\n  name = "LabInstanceProfile"\n}\n\nresource "aws_instance" "app" {\n  ami                  = var.ami_id\n  instance_type        = var.instance_type\n  subnet_id            = var.subnet_id\n  iam_instance_profile = data.aws_iam_instance_profile.lab.name\n\n  tags = {\n    Name = "factory-hub-app"\n  }\n}\n\noutput "app_public_ip" {\n  value = aws_instance.app.public_ip\n}`}</code></pre>
+              </article>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TheoryBox type="info" title="O ciclo de trabalho no terminal">
+                <ol className="list-decimal list-inside space-y-1 text-xs">
+                  <li><code>terraform init</code> baixa e configura os providers e módulos.</li>
+                  <li><code>terraform fmt</code> padroniza a formatação; <code>terraform validate</code> verifica a estrutura.</li>
+                  <li><code>terraform plan</code> revisa a proposta. Salve um plano para revisão/aplicação controlada quando necessário.</li>
+                  <li><code>terraform apply</code> pede confirmação e realiza as mudanças aprovadas.</li>
+                  <li><code>terraform output</code> consulta os resultados; <code>terraform destroy</code> remove recursos gerenciados, após revisão cuidadosa.</li>
+                </ol>
+              </TheoryBox>
+              <TheoryBox type="warning" title="State e segurança: conceitos que não podem ser ignorados">
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>O state é o mapa que permite ao Terraform saber quais recursos correspondem à configuração; não é apenas cache.</li>
+                  <li>State local não deve ser compartilhado por cópia. Em equipe, use backend remoto suportado, controle de acesso e bloqueio.</li>
+                  <li>State e arquivos de variáveis podem conter dados sensíveis: não os comite. Use <code>.gitignore</code> e segredos do ambiente.</li>
+                  <li>Não edite o state manualmente; use comandos de gerenciamento e faça backup antes de operações excepcionais.</li>
+                </ul>
+              </TheoryBox>
+            </div>
+
+            <article className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+              <h3 className="font-bold text-sm text-gray-800 dark:text-gray-200 mb-3">Como isso se conecta ao Factory Hub</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  ['Rede', 'VPC, subnets, rotas e security groups definem onde os serviços podem conversar.'],
+                  ['Aplicação', 'EC2 hospeda os containers. Outputs podem expor o IP ou DNS usados no acesso e no deploy.'],
+                  ['Dados e filas', 'RDS e SQS são recursos declarados com parâmetros explícitos e permissões mínimas.'],
+                  ['Identidade', 'No Learner Lab, reutilize a role/perfil permitido (LabRole); não presuma permissão para criar IAM roles.'],
+                ].map(([title, description]) => <div key={title} className="rounded-lg bg-gray-50 dark:bg-gray-900 p-3"><h4 className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-1">{title}</h4><p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">{description}</p></div>)}
+              </div>
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-600 dark:text-gray-400">
+                <div><h4 className="font-bold text-gray-800 dark:text-gray-200 mb-1">Boas práticas para aprender</h4><ul className="list-disc list-inside space-y-1"><li>Faça commits pequenos e revise o plan antes de aplicar.</li><li>Separe configuração por responsabilidade e use variáveis para diferenças entre ambientes.</li><li>Fixe versões de providers e registre o arquivo de lock para builds reproduzíveis.</li><li>Use tags para identificar projeto, ambiente e responsável pelos recursos.</li></ul></div>
+                <div><h4 className="font-bold text-gray-800 dark:text-gray-200 mb-1">Erros comuns e como interpretar</h4><ul className="list-disc list-inside space-y-1"><li>Credencial expirada: reinicie/renove a sessão do Learner Lab e tente novamente.</li><li>AccessDenied: confira limites da Academy; alterar HCL não concede permissão IAM.</li><li>Recurso já existe: importe-o ou ajuste a configuração; não tente recriá-lo às cegas.</li><li>Mudança inesperada no plan: pare, confira state, região e variáveis antes de aplicar.</li></ul></div>
+              </div>
+            </article>
+          </section>
+
           {/* SQS Comparison */}
           <div>
             <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">📬 SQS — Assíncrono vs Síncrono</h2>

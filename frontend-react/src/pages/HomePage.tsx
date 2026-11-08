@@ -72,10 +72,7 @@ export const HomePage: React.FC = () => {
         </h2>
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
           <div className="flex flex-col items-center gap-1.5">
-            {isaPyramid
-              .slice()
-              .reverse()
-              .map(tier => (
+            {isaPyramid.map(tier => (
                 <div key={tier.level} className={`${tier.width} flex items-center justify-center`}>
                   <div
                     className={`w-full ${tier.color} text-white rounded-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 shadow-sm`}
