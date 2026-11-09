@@ -3,7 +3,7 @@
 > **Unidade Curricular:** Ciência de Dados (80 horas / 20 Semanas)  
 > **Objetivo:** Transformar medições de telemetria industrial em diagnósticos preditivos através do ciclo CRISP-DM, redes neurais e indicadores OEE.
 
-> **Implementação atual:** o serviço em `ml-service/` treina uma Random Forest com 2.400 medições sintéticas rotuladas. A interface `TrainingDataSource` deverá receber, numa etapa posterior, os registros históricos do InfluxDB. Portanto, métricas atuais servem para exercitar o pipeline e não representam qualidade de um modelo de produção.
+> **Implementacao atual:** o servico em `ml-service/` treina uma Random Forest com o historico do InfluxDB. Cada leitura e usada para prever a classe da proxima leitura da mesma maquina, e a validacao usa um periodo futuro separado cronologicamente. Os rotulos sao didaticos e derivados de limites de temperatura e vibracao; metricas altas nao equivalem a qualidade comprovada para falhas reais.
 
 ---
 
@@ -15,7 +15,7 @@ O ciclo **CRISP-DM (Cross-Industry Standard Process for Data Mining)** orienta a
 flowchart LR
     BU["1. Business\nUnderstanding"] --> DU["2. Data\nUnderstanding"]
     DU --> DP["3. Data\nPreparation"]
-    DP --> M["4. Modeling\n(Rede Neural)"]
+    DP --> M["4. Modeling\n(Random Forest)"]
     M --> E["5. Evaluation\n(Custos de Erro)"]
     E --> D["6. Deployment\n(Flask API)"]
     E -.->|Refinamento| BU
@@ -31,7 +31,7 @@ flowchart LR
    - Normalização dos atributos via `StandardScaler` ($\mu = 0, \sigma = 1$).
    - Construção de janelas deslizantes (*sliding windows*) para incorporar dinâmica temporal.
 4. **Modeling (Modelagem):**
-   - No serviço atual, treinamento de **Random Forest** para classificação supervisionada em três estados. MLP pode ser avaliada como alternativa, mas não é o modelo que o endpoint serve hoje.
+   - No serviço atual, a **Random Forest** recebe os sensores da leitura atual e estima o estado da próxima leitura da mesma máquina. MLP pode ser avaliada como alternativa, mas não é o modelo que o endpoint serve hoje.
 5. **Evaluation (Avaliação):**
    - Priorização da métrica **Recall** para a classe de anomalia, complementada por F1-Score e Curva ROC-AUC.
 6. **Deployment (Implantação):**

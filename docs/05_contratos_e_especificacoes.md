@@ -52,7 +52,7 @@ Exemplo de mensagem publicada:
 }
 ```
 
-`timestamp` é Unix Epoch em segundos; use NTP/horário UTC no ESP32. Se for omitido, a Lambda usa o horário de recebimento. `machine_state`, `status`, `machine_type`, `pecas_produzidas` e `pecas_defeito` são opcionais para ingestão; para calcular OEE real, envie o estado e os dois contadores acumulados. A Lambda deriva `machine_state` de RPM se o campo for omitido. No firmware didático atual, cada amostra a cada 3 s com RPM ativo representa uma peça e vibração ≥ 7 mm/s marca essa peça como refugo.
+`timestamp` e Unix Epoch em segundos UTC. A Lambda preserva o instante recebido do dispositivo no campo InfluxDB `device_timestamp`, mas usa o horario de recebimento da mensagem no SQS como timestamp do ponto InfluxDB para garantir ordenacao e evitar que timestamps repetidos sobrescrevam leituras novas. Se o atributo `SentTimestamp` do SQS nao estiver disponivel, usa o timestamp enviado pelo dispositivo. `machine_state`, `status`, `machine_type`, `pecas_produzidas` e `pecas_defeito` sao opcionais para ingestao; para calcular OEE real, envie o estado e os dois contadores acumulados. A Lambda deriva `machine_state` de RPM se o campo for omitido. No firmware didatico atual, cada amostra a cada 3 s com RPM ativo representa uma peca e vibracao >= 7 mm/s marca essa peca como refugo.
 
 Para criar o circuito com potenciômetros e publicar com TLS/QoS 1 no Wokwi, siga o [guia de montagem do ESP32](07_guia_esp32_wokwi.md).
 
@@ -77,7 +77,7 @@ Para criar o circuito com potenciômetros e publicar com TLS/QoS 1 no Wokwi, sig
   "status_previsto": "RISCO_ANOMALIA",
   "probabilidade_falha": 0.8421,
   "recomendacao": "Vibração elevada no eixo secundário. Agendar inspeção preventiva.",
-  "modelo_versao": "random-forest-v1.0.0",
+  "modelo_versao": "random-forest-v1.1.0",
   "timestamp_analise": "2026-11-08T10:15:05Z",
   "source": "INFLUXDB"
 }
@@ -147,7 +147,7 @@ O navegador envia a solicitação somente ao backend Java. O backend valida o pa
 **Requisição:** mesmo formato do contrato Flask, com `device_id`, `temperatura`, `vibracao` e `rpm`.
 
 **Resposta:** mesmo formato da resposta Flask, incluindo `status_previsto`, `probabilidade_falha`, `recomendacao` e `modelo_versao`.
-No perfil cloud (`postgres,influx`), o adapter do backend encaminha a requisição ao Flask privado e persiste predições não operacionais como alertas no RDS. O perfil `mock` permanece disponível para desenvolvimento local offline.
+No perfil cloud (`postgres,influx`), o adapter do backend encaminha a requisição ao Flask privado e persiste predições não operacionais como alertas no RDS. O perfil `mock` permanece disponível para desenvolvimento local offline. O modelo atual prediz a classe da proxima leitura registrada da maquina; o horario depende da frequencia de amostragem e nao representa um horizonte fixo em minutos.
 
 ### 3.4. Saúde dos Serviços: `GET /api/v1/health`
 O backend agrega o estado dos componentes e fornece a lista exibida pelo frontend. Inclua pelo menos nome, estado e, quando disponível, latência. O backend é a única fonte do estado do Flask, banco, broker e demais serviços.
@@ -178,6 +178,9 @@ No perfil cloud, os adapters ativos usam as origens abaixo:
 | Treinamento e inferência | Flask privado; treinamento lê o histórico do InfluxDB e predições são solicitadas pelo backend Java |
 
 O perfil cloud ativa os adapters PostgreSQL, InfluxDB e Flask. Os adapters em `infrastructure/mock` são usados no perfil offline/local. Para o OEE didático, o período planejado corresponde ao intervalo coberto por amostras consecutivas (até 9 s); `RUNNING`/RPM ativo conta como tempo operando e `STOPPED`/RPM zero como parada. A capacidade ideal de 1.200 peças/hora decorre do ciclo simulado de uma peça a cada 3 s.
+
+### 3.6. Treinamento do modelo
+O frontend usa `POST /api/v1/treinamentos` para iniciar o retreino, `GET /api/v1/treinamentos/status` para acompanhar mensagens e metricas e `GET /api/v1/treinamentos/data-info` para consultar as medicoes atuais. A contagem e consultada a cada 15 segundos e retorna `raw_measurements`, `training_records`, `training_data_source` e `observed_at`. `training_records` representa pares temporais: uma leitura atual para prever a classe da proxima leitura da mesma maquina. A contagem do ultimo treino so muda quando um novo treinamento termina.
 
 ## 4. Esquema de Banco de Dados (RDS PostgreSQL)
 

@@ -5,8 +5,8 @@ import { TheoryBox } from '../components/common/TheoryBox';
 import { TelemetryLineChart } from '../components/charts/TelemetryLineChart';
 import { OeeGaugeChart } from '../components/charts/OeeGaugeChart';
 import { getTelemetria } from '../services/telemetryService';
-import { getModelTrainingStatus, predict, startModelTraining } from '../services/aiPredictService';
-import { ModelTrainingStatus, TelemetryReading, PredictResponse } from '../types';
+import { getModelTrainingDataInfo, getModelTrainingStatus, predict, startModelTraining } from '../services/aiPredictService';
+import { ModelTrainingDataInfo, ModelTrainingStatus, TelemetryReading, PredictResponse } from '../types';
 
 const TABS = [
   { id: 'teoria', label: '📚 Teoria' },
@@ -35,7 +35,7 @@ const CRISP_DM_PHASES = [
   {
     phase: '4. Modeling',
     color: 'bg-green-500',
-    desc: 'Treinar Random Forest Classifier com features temporais. Validação cruzada estratificada.',
+    desc: 'Treinar Random Forest para prever a classe da próxima leitura. A validação usa um período futuro, separado cronologicamente.',
     deliverable: 'Modelo pkl + métricas',
   },
   {
@@ -70,11 +70,32 @@ export const DataSciencePage: React.FC = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [training, setTraining] = useState<ModelTrainingStatus | null>(null);
+  const [trainingDataInfo, setTrainingDataInfo] = useState<ModelTrainingDataInfo | null>(null);
+  const [trainingDataInfoError, setTrainingDataInfoError] = useState('');
   const [trainingLoading, setTrainingLoading] = useState(false);
   const [trainingError, setTrainingError] = useState('');
 
   useEffect(() => {
     getTelemetria('esp32-torno-01').then(setTelemetry).catch(() => setTelemetry([]));
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const refreshDataInfo = () => {
+      getModelTrainingDataInfo().then(info => {
+        if (!active) return;
+        setTrainingDataInfo(info);
+        setTrainingDataInfoError('');
+      }).catch(() => {
+        if (active) setTrainingDataInfoError('Contagem atual indisponivel; confira a conexao com o InfluxDB.');
+      });
+    };
+    refreshDataInfo();
+    const interval = setInterval(refreshDataInfo, 15000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -359,7 +380,7 @@ export const DataSciencePage: React.FC = () => {
             {training?.metrics && (
               <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
-                  ['Amostras', training.training_records?.toLocaleString('pt-BR') ?? '—'],
+                  ['Pares de treino', training.training_records?.toLocaleString('pt-BR') ?? '—'],
                   ['Acurácia', `${(training.metrics.accuracy * 100).toFixed(1)}%`],
                   ['F1 macro', `${(training.metrics.f1_macro * 100).toFixed(1)}%`],
                   ['Fonte', training.training_data_source ?? '—'],
@@ -370,6 +391,21 @@ export const DataSciencePage: React.FC = () => {
                   </div>
                 ))}
               </div>
+            )}
+            <div className="mt-2 space-y-1 text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
+              <p>
+                Disponíveis agora no InfluxDB: {trainingDataInfo ? `${trainingDataInfo.raw_measurements.toLocaleString('pt-BR')} leituras / ${trainingDataInfo.training_records.toLocaleString('pt-BR')} pares` : 'consultando...'}.
+                {trainingDataInfo && <> Atualizado às {new Date(trainingDataInfo.observed_at).toLocaleTimeString('pt-BR')}.</>}
+              </p>
+              {training?.raw_measurements !== undefined && (
+                <p>Último treino: {training.raw_measurements.toLocaleString('pt-BR')} leituras / {training.training_records?.toLocaleString('pt-BR')} pares usados.</p>
+              )}
+              {trainingDataInfoError && <p role="status" className="text-amber-700 dark:text-amber-300">{trainingDataInfoError}</p>}
+            </div>
+            {training?.metrics && (
+              <p className="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+                A validação usa leituras futuras, mas os rótulos são didáticos e derivados de limites de temperatura e vibração. Acurácia alta, inclusive 100%, não comprova desempenho em falhas industriais reais.
+              </p>
             )}
 
             {training?.messages?.length ? (
@@ -500,7 +536,7 @@ export const DataSciencePage: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Status Previsto</span>
+                        <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Status da próxima leitura</span>
                         <span
                           className={`text-xs font-bold px-2 py-0.5 rounded-full text-white ${
                             ['CRITICAL', 'RISCO_ANOMALIA'].includes(aiResult.status_previsto) ? 'bg-red-500' : ['WARNING', 'ATENCAO'].includes(aiResult.status_previsto) ? 'bg-amber-500' : 'bg-green-500'
@@ -510,7 +546,7 @@ export const DataSciencePage: React.FC = () => {
                         </span>
                       </div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                        Risco de Falha: <span className="font-bold text-gray-800 dark:text-gray-200">{riskPercent.toFixed(1)}%</span>
+                        Risco estimado na próxima leitura: <span className="font-bold text-gray-800 dark:text-gray-200">{riskPercent.toFixed(1)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
                         <div

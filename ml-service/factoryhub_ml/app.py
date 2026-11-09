@@ -61,6 +61,7 @@ def create_app(
         }],
         "metrics": artifact["metrics"],
         "training_records": artifact["training_records"],
+        "raw_measurements": artifact["raw_measurements"],
         "training_data_source": artifact["training_source"],
         "trained_at": artifact["trained_at"],
         "model_version": artifact["model_version"],
@@ -98,6 +99,7 @@ def create_app(
                     "message": "Treinamento concluído. O novo modelo já está ativo para as predições.",
                     "metrics": artifact["metrics"],
                     "training_records": artifact["training_records"],
+                    "raw_measurements": artifact["raw_measurements"],
                     "training_data_source": artifact["training_source"],
                     "trained_at": artifact["trained_at"],
                     "model_version": artifact["model_version"],
@@ -145,6 +147,18 @@ def create_app(
         with training_lock:
             return jsonify(deepcopy(training_status))
 
+    @app.get("/training/data-info")
+    def training_data_info() -> Any:
+        try:
+            counts = data_source.count_training_rows()
+            return jsonify({
+                **counts,
+                "training_data_source": data_source.source_name,
+                "observed_at": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception as error:
+            return jsonify({"error": f"Nao foi possivel contar as medicoes atuais: {error}"}), 503
+
     @app.get("/health")
     def health() -> Any:
         current_artifact = app.config["model_artifact"]
@@ -156,6 +170,7 @@ def create_app(
             "model_version": current_artifact["model_version"],
             "training_data_source": current_artifact["training_source"],
             "training_records": current_artifact["training_records"],
+            "raw_measurements": current_artifact["raw_measurements"],
             "trained_at": current_artifact["trained_at"],
             "metrics": current_artifact["metrics"],
         })
@@ -171,6 +186,7 @@ def create_app(
             "classes": [str(label) for label in current_prediction_service.model.classes_],
             "training_data_source": current_artifact["training_source"],
             "training_records": current_artifact["training_records"],
+            "raw_measurements": current_artifact["raw_measurements"],
             "metrics": current_artifact["metrics"],
             "trained_at": current_artifact["trained_at"],
             "loaded_from_disk": current_artifact["loaded_from_disk"],

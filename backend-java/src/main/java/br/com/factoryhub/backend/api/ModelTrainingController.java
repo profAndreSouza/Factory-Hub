@@ -28,4 +28,9 @@ public class ModelTrainingController {
     public Map<String, Object> trainingStatus() {
         return modelTraining.trainingStatus();
     }
+
+    @GetMapping("/data-info")
+    public Map<String, Object> trainingDataInfo() {
+        return modelTraining.trainingDataInfo();
+    }
 }

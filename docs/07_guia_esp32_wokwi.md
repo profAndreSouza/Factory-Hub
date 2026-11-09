@@ -162,6 +162,8 @@ MQTTClient mqtt(1024);
 
 unsigned long lastPublish = 0;
 unsigned long lastReconnect = 0;
+time_t epochAtSync = 0;
+unsigned long millisAtSync = 0;
 uint32_t totalParts = 0;
 uint32_t scrapParts = 0;
 
@@ -204,6 +206,13 @@ void setup() {
   }
   Serial.println();
 
+  // Use o NTP como base e millis() como relógio monotônico. Isso evita
+  // timestamps repetidos caso o relógio de parede do simulador fique parado.
+  epochAtSync = time(nullptr);
+  if (epochAtSync >= 1700000000) {
+    millisAtSync = millis();
+  }
+
   tls.setCACert(AWS_ROOT_CA);
   tls.setCertificate(DEVICE_CERT);
   tls.setPrivateKey(DEVICE_PRIVATE_KEY);
@@ -239,11 +248,11 @@ void loop() {
   }
   lastPublish = millis();
 
-  const time_t timestamp = time(nullptr);
-  if (timestamp < 1700000000) {
+  if (epochAtSync < 1700000000) {
     Serial.println("Aguardando sincronização NTP; leitura não publicada.");
     return;
   }
+  const time_t timestamp = epochAtSync + (millis() - millisAtSync) / 1000;
 
   const float temperatura = analogRead(TEMP_PIN) * (150.0f / 4095.0f);
   const float vibracao = analogRead(VIB_PIN) * (10.0f / 4095.0f);

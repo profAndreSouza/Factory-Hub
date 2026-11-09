@@ -80,8 +80,16 @@ export interface ModelTrainingStatus {
     test_records: number;
   };
   training_records?: number;
+  raw_measurements?: number;
   training_data_source?: string;
   trained_at?: string;
   model_version?: string;
+}
+
+export interface ModelTrainingDataInfo {
+  raw_measurements: number;
+  training_records: number;
+  training_data_source: string;
+  observed_at: string;
 }
 

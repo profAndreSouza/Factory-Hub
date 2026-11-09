@@ -29,13 +29,14 @@ O frontend fica em `http://localhost`; a API pode ser acessada em `http://localh
 | `POST /api/v1/predicoes` | Predição de condição de máquina | Serviço Flask; alertas não operacionais são persistidos no PostgreSQL |
 | `POST /api/v1/treinamentos` | Solicita retreinamento do modelo | Flask com histórico do InfluxDB |
 | `GET /api/v1/treinamentos/status` | Etapa, mensagens e métricas do treino | Flask |
+| `GET /api/v1/treinamentos/data-info` | Leituras e pares de treino disponíveis agora | Contagem atual do InfluxDB, atualizada no frontend a cada 15 segundos |
 | `GET /api/v1/health` | Estado das dependências | Java, Flask, InfluxDB e PostgreSQL consultados; AWS IoT Core aparece `UNKNOWN` / `NOT_MONITORED` |
 
 O React chama apenas `/api/...`. O Nginx encaminha as chamadas para o Java; o navegador não acessa diretamente Flask, InfluxDB ou RDS.
 
 ## Validar treino, predição e alerta
 
-Na interface, abra **Ciência de Dados → Laboratório** e use **Treinar modelo**. A página inicia `POST /api/v1/treinamentos` e consulta `GET /api/v1/treinamentos/status` para exibir etapas, mensagens e métricas. O conjunto de treinamento é lido do bucket `telemetry` no InfluxDB; no Compose, ele pode incluir a carga sintética inicial além das medições `LIVE`.
+Na interface, abra **Ciência de Dados → Laboratório** e use **Treinar modelo**. A página inicia `POST /api/v1/treinamentos`, consulta `GET /api/v1/treinamentos/status` para exibir etapas, mensagens e métricas, e atualiza a contagem disponível por `GET /api/v1/treinamentos/data-info` a cada 15 segundos. O conjunto de treinamento é lido do bucket `telemetry` no InfluxDB; no Compose, ele pode incluir a carga sintética inicial além das medições `LIVE`.
 
 Para validar a inferência pelo mesmo caminho usado pelo navegador:
 

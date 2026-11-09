@@ -22,7 +22,7 @@ def _escape_string(value: object) -> str:
 def _timestamp_ns(value: object) -> int:
     if value is None:
         return int(datetime.now(timezone.utc).timestamp() * 1_000_000_000)
-    if isinstance(value, (int, float)):
+    if isinstance(value, (int, float)) or (isinstance(value, str) and value.isdigit()):
         numeric = int(value)
         if numeric < 100_000_000_000:
             return numeric * 1_000_000_000
@@ -35,7 +35,7 @@ def _timestamp_ns(value: object) -> int:
     return int(parsed.timestamp() * 1_000_000_000)
 
 
-def _line_protocol(payload: dict[str, Any]) -> str:
+def _line_protocol(payload: dict[str, Any], received_at_ms: object = None) -> str:
     device_id = _escape_tag(payload.get("device_id", "unknown"))
     machine_type = _escape_tag(payload.get("machine_type", "CNC"))
     temperature = float(payload["temperatura"])
@@ -47,18 +47,21 @@ def _line_protocol(payload: dict[str, Any]) -> str:
         else "OPERATIONAL"
     ))
     machine_state = str(payload.get("machine_state") or ("RUNNING" if rpm > 0 else "STOPPED"))
+    device_timestamp_ns = _timestamp_ns(payload.get("timestamp"))
+    point_timestamp_ns = _timestamp_ns(received_at_ms) if received_at_ms is not None else device_timestamp_ns
     fields = [
         f'temperatura={temperature}',
         f'vibracao={vibration}',
         f'rpm={rpm}i',
         f'status="{_escape_string(status)}"',
         f'machine_state="{_escape_string(machine_state)}"',
+        f'device_timestamp={device_timestamp_ns // 1_000_000_000}i',
     ]
     if payload.get("pecas_produzidas") is not None:
         fields.append(f'pecas_produzidas={int(payload["pecas_produzidas"])}i')
     if payload.get("pecas_defeito") is not None:
         fields.append(f'pecas_defeito={int(payload["pecas_defeito"])}i')
-    return f'machine_telemetry,device_id={device_id},machine_type={machine_type},data_origin=LIVE {",".join(fields)} {_timestamp_ns(payload.get("timestamp"))}'
+    return f'machine_telemetry,device_id={device_id},machine_type={machine_type},data_origin=LIVE {",".join(fields)} {point_timestamp_ns}'
 
 
 def _write_line(line: str) -> None:
@@ -92,7 +95,8 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, list[dict[
             for required in ("device_id", "temperatura", "vibracao", "rpm"):
                 if required not in payload:
                     raise ValueError(f"Campo obrigatório ausente: {required}")
-            _write_line(_line_protocol(payload))
+            received_at_ms = record.get("attributes", {}).get("SentTimestamp")
+            _write_line(_line_protocol(payload, received_at_ms))
         except (KeyError, TypeError, ValueError, urllib.error.URLError, TimeoutError, RuntimeError):
             failures.append({"itemIdentifier": message_id})
     return {"batchItemFailures": failures}

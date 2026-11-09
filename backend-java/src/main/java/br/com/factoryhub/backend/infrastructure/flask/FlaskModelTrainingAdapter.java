@@ -41,4 +41,14 @@ public class FlaskModelTrainingAdapter implements ModelTrainingPort {
                     "Não foi possível consultar o treinamento no serviço Flask.", exception);
         }
     }
+
+    @Override
+    public Map<String, Object> trainingDataInfo() {
+        try {
+            return flaskClient.get().uri("/training/data-info").retrieve().body(RESPONSE_TYPE);
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Nao foi possivel consultar a quantidade atual de dados para treino no Flask.", exception);
+        }
+    }
 }

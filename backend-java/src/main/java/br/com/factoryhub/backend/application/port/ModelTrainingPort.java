@@ -6,4 +6,6 @@ public interface ModelTrainingPort {
     Map<String, Object> startTraining();
 
     Map<String, Object> trainingStatus();
+
+    Map<String, Object> trainingDataInfo();
 }

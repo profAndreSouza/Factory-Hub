@@ -20,6 +20,9 @@ class TrainingDataSource(Protocol):
     def fetch_training_rows(self) -> list[dict[str, object]]:
         """Return labelled sensor readings from the selected data source."""
 
+    def count_training_rows(self) -> dict[str, int]:
+        """Count current raw readings and one-step training examples."""
+
 
 class MockTrainingDataSource:
     """Creates repeatable synthetic historical telemetry for local learning."""
@@ -55,6 +58,13 @@ class MockTrainingDataSource:
                 "status": status,
             })
         return rows
+
+    def count_training_rows(self) -> dict[str, int]:
+        devices = min(self.sample_count, 6)
+        return {
+            "raw_measurements": self.sample_count,
+            "training_records": max(0, self.sample_count - devices),
+        }
 
 
 class InfluxTrainingDataSource:
@@ -113,3 +123,19 @@ class InfluxTrainingDataSource:
                     "status": status,
                 })
         return rows
+
+    def count_training_rows(self) -> dict[str, int]:
+        flux = f'''from(bucket: "{self.bucket}")
+  |> range(start: -{self.days}d)
+  |> filter(fn: (r) => r._measurement == "machine_telemetry" and r._field == "temperatura")
+  |> group(columns: ["device_id"])
+  |> count(column: "_value")
+'''
+        with InfluxDBClient(url=self.url, token=self.token, org=self.org) as client:
+            tables = client.query_api().query(query=flux, org=self.org)
+
+        per_device_counts = [int(record.get_value() or 0) for table in tables for record in table.records]
+        return {
+            "raw_measurements": sum(per_device_counts),
+            "training_records": sum(max(0, count - 1) for count in per_device_counts),
+        }

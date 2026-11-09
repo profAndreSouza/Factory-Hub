@@ -6,17 +6,18 @@ Microserviço de inferência usado exclusivamente pelo backend Java. O serviço 
 
 O contrato `TrainingDataSource` em `factoryhub_ml/data_source.py` separa a consulta dos dados do treinamento. No Docker Compose, `InfluxTrainingDataSource` consulta o bucket `telemetry` do InfluxDB. O serviço `influx-seed` grava 14 dias de telemetria sintética para três máquinas antes de iniciar Flask e Java; **são dados didáticos, não medições de máquinas reais**. Fora do Compose, `MockTrainingDataSource` continua disponível como fallback.
 
-Os rótulos (`OPERATIONAL`, `WARNING`, `CRITICAL`) são derivados dos limites de temperatura e vibração das medições consultadas. O restante do pipeline de treino mantém o mesmo formato para qualquer fonte. Os pontos semeados são marcados `data_origin=DEMO`; a Lambda marca as novas mensagens do dispositivo como `data_origin=LIVE`, permitindo ao backend calcular OEE sem misturar histórico sintético com telemetria validada.
+Os rotulos didaticos (`OPERATIONAL`, `WARNING`, `CRITICAL`) sao derivados dos limites de temperatura e vibracao. O modelo usa cada medicao para prever a classe da proxima leitura da mesma maquina; a validacao e cronologica e usa um trecho posterior do historico, reduzindo vazamento entre leituras vizinhas. As metricas continuam sendo didaticas: como os rotulos sao regras aplicadas aos sensores simulados, acuracia de 100% nao comprova desempenho em falhas industriais reais.
 
-O modelo divide os dados em treino e teste, calcula acurácia e F1 macro e guarda modelo, métricas, origem e data do treino em `ML_MODEL_PATH`. Um artefato só é reutilizado quando a fonte registrada coincide com a fonte configurada. No Compose, a URL interna é `http://influxdb:8086`; a interface do InfluxDB fica disponível em `http://localhost:8086`.
+O modelo monta pares temporais de leituras consecutivas, separa treino e validacao por tempo, calcula acuracia e F1 macro e guarda o modelo, metricas, contagem de pares e total bruto de medicoes em `ML_MODEL_PATH`. Cada nova leitura com timestamp unico entra no proximo retreino; a contagem e atualizada quando o treino consulta novamente o InfluxDB. Um artefato só é reutilizado quando a fonte registrada coincide com a fonte configurada. No Compose, a URL interna é `http://influxdb:8086`; a interface do InfluxDB fica disponível em `http://localhost:8086`.
 
 ## Rotas
 
-- `POST /predict`: recebe `device_id`, `temperatura`, `vibracao`, `rpm`; retorna classe prevista, probabilidade de falha, recomendação, versão do modelo, instante da análise e origem dos dados de treino.
+- `POST /predict`: recebe `device_id`, `temperatura`, `vibracao`, `rpm`; retorna a classe prevista para a próxima leitura registrada, risco estimado, recomendação, versão do modelo, instante da análise e origem dos dados de treino.
 - `GET /health`: estado de disponibilidade do serviço e do modelo carregado.
 - `GET /model/info`: algoritmo, atributos, classes, métricas, tamanho e origem do conjunto de treino.
 - `POST /train`: inicia um retreinamento em segundo plano usando o histórico atual do InfluxDB.
 - `GET /training/status`: mostra etapa, percentual, mensagens, métricas e resultado do treinamento em andamento ou mais recente.
+- `GET /training/data-info`: conta medicoes e pares temporais disponiveis no InfluxDB sem iniciar treinamento.
 
 No frontend, a página **Ciência de Dados > Laboratório** permite iniciar esse fluxo e acompanhar as mensagens. O React chama as rotas de treinamento do backend Java; somente o backend conversa com o Flask. O modelo atual continua atendendo predições enquanto a nova versão é treinada e é substituído quando o treino termina.
 
