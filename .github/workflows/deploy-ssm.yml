@@ -50,8 +50,8 @@ jobs:
             git clone --depth 1 "https://github.com/__GITHUB_REPOSITORY__.git" "$app_dir"
           fi
           cd "$app_dir"
-          git fetch origin main
-          git reset --hard origin/main
+          git -c safe.directory="$app_dir" fetch origin main
+          git -c safe.directory="$app_dir" reset --hard origin/main
           rds_prefix=/factoryhub/academy/rds
           runtime_prefix=/factoryhub/academy/runtime
           dockerhub_username=$(aws ssm get-parameter --name "$runtime_prefix/dockerhub-username" --query 'Parameter.Value' --output text --region __AWS_REGION__)
