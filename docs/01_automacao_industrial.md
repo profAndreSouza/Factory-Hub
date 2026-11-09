@@ -12,8 +12,8 @@ O modelo **ANSI/ISA-95** padroniza a interface entre sistemas corporativos de TI
 | Nível ISA-95 | Descrição | No Ecossistema Factory Hub |
 |---|---|---|
 | **Nível 4** | Planejamento de Recursos Empresariais (ERP) | Nuvem AWS (EC2, RDS PostgreSQL, relatórios executivos). |
-| **Nível 3** | Gerenciamento de Operações de Manufatura (MES) | Backend Java (Spring Boot) calculando indicadores OEE e consolidações. |
-| **Nível 2** | Supervisão de Processo e SCADA | Gateway Node-RED realizando filtragem de histerese e observabilidade local. |
+| **Nível 3** | Gerenciamento de Operações de Manufatura (MES) | Backend Java (Spring Boot) consulta dados operacionais e oferece APIs; OEE com dados reais ainda está em desenvolvimento. |
+| **Nível 2** | Supervisão de Processo e SCADA | Não implementado como SCADA neste protótipo; o painel web apresenta a telemetria recebida. |
 | **Nível 1** | Controle Básico e Aquisição de Dados (CLP) | Microcontrolador ESP32 processando sinais digitais e analógicos. |
 | **Nível 0** | Processo Físico de Manufatura | Sensores (temperatura, vibração, RPM) e atuadores na célula de usinagem. |
 
@@ -43,7 +43,7 @@ O MQTT é um protocolo padrão ISO/IEC 20922 para IIoT sobre TCP/IP:
 ### 3.1. Arquitetura Pub/Sub
 - **Publisher (Publicador):** O microcontrolador ESP32 publica os dados de sensores.
 - **Broker (Intermediário):** Servidor central (AWS IoT Core ou Eclipse Mosquitto) que recebe e encaminha as mensagens.
-- **Subscriber (Assinante):** Backend Java, Node-RED ou regras de nuvem que assinam tópicos de interesse.
+- **Consumidor:** A IoT Rule encaminha o tópico para SQS; a Lambda consome a fila e grava as medições brutas no InfluxDB. O backend Java consulta os dados para a API.
 
 ### 3.2. Tópico implantado no AWS IoT Core
 O Terraform criou uma regra IoT que escuta este tópico exato e encaminha cada JSON para SQS:
@@ -56,64 +56,27 @@ O `device_id` deve corresponder a um cadastro existente no RDS: `esp32-torno-01`
 
 ### 3.3. Níveis de Garantia de Entrega (QoS)
 - **QoS 0 (At Most Once):** A mensagem é enviada sem confirmação (*fire and forget*). Ideal para leituras contínuas de sensores a cada 3 segundos.
-- **QoS 1 (At Least Once):** O broker responde com `PUBACK`. Garante que a mensagem chegue pelo menos uma vez (pode duplicar). Usado para contagem de peças e eventos de parada.
-- **QoS 2 (Exactly Once):** Handshake de 4 vias (`PUBLISH` -> `PUBREC` -> `PUBREL` -> `PUBCOMP`). Utilizado em comandos críticos de acionamento.
+- **QoS 1 (At Least Once):** O broker responde com `PUBACK`. A mensagem pode ser entregue mais de uma vez; consumidores devem considerar duplicatas.
+
+O AWS IoT Core suporta QoS 0 e QoS 1 para MQTT; não suporta QoS 2. O firmware deste guia usa QoS 1. O `PUBACK` confirma recebimento pelo broker, não a gravação no InfluxDB.
 
 ---
 
-## 4. Orquestração com Node-RED & Ciclo de Alertas
+## 4. Ingestão e classificação da telemetria
 
-### 4.1. Papel do Node-RED na Arquitetura
-O Node-RED opera como ferramenta de *flow-based programming* para:
-1. Ingestão local de tópicos MQTT.
-2. Tratamento de tipos de dados (conversão de strings brutas para números em JSON).
-3. Injeção controlada de falhas em bancada didática para testes de estresse.
+No ambiente provisionado, a cadeia de processamento é **AWS IoT Core → IoT Rule → SQS → Lambda → InfluxDB**. A Lambda valida os campos obrigatórios, define o status se o dispositivo não o enviar e grava a medição no InfluxDB. O backend Java lê a série temporal; não há Node-RED no fluxo implantado.
 
-### 4.2. Processamento Stateful e Histerese
-Para evitar que oscilações térmicas no limiar provoquem disparos intermitentes de alarmes (*flapping*), aplica-se a técnica de banda morta (*deadband*) com contagem de persistência:
-- **Disparo de Alarme:** Se $\text{Temperatura} > 85^\circ\text{C}$ durante 3 ciclos de leitura sucessivos.
-- **Normalização de Alarme:** Apenas quando $\text{Temperatura} < 78^\circ\text{C}$.
+Os limites atuais da Lambda são simples limiares por leitura, sem histerese:
+
+- **CRITICAL:** temperatura ≥ 90 °C ou vibração ≥ 7 mm/s.
+- **WARNING:** temperatura ≥ 80 °C ou vibração ≥ 4,5 mm/s.
+- **OPERATIONAL:** abaixo desses limites.
+
+A histerese é um possível exercício de extensão: exigir várias amostras acima do limiar para entrar em alarme e um limite mais baixo para normalizar evita alternância rápida (*flapping*). Essa lógica ainda não está implementada no processamento atual.
 
 ---
 
-## 5. Payload de telemetria para o firmware ESP32 (Wokwi)
+## 5. Montagem do ESP32 no Wokwi
 
-Publique no tópico `industria/smartn1/telemetria` um JSON com este formato (campos obrigatórios: `device_id`, `temperatura`, `vibracao` e `rpm`):
-
-```json
-{
-  "device_id": "esp32-torno-01",
-  "machine_type": "USINAGEM",
-  "timestamp": 1794144000,
-  "temperatura": 72.8,
-  "vibracao": 2.45,
-  "rpm": 3480,
-  "status": "OPERATIONAL",
-  "pecas_produzidas": 15,
-  "pecas_defeito": 1
-}
-```
-
-`timestamp` é Unix Epoch em segundos (UTC), obtido por NTP; `millis()/1000` não é um horário válido. Se omitido, a Lambda usa o instante em que recebeu a mensagem. `status`, `machine_type`, `pecas_produzidas` e `pecas_defeito` são opcionais. Se o status for omitido, a Lambda calcula `CRITICAL` com temperatura ≥ 90 °C ou vibração ≥ 7 mm/s, `WARNING` com temperatura ≥ 80 °C ou vibração ≥ 4,5 mm/s e `OPERATIONAL` nos demais casos.
-
-O hostname do broker é específico da conta: abra **AWS IoT Core → Settings → Device data endpoint**, ou consulte via AWS CLI conforme a seção 3.2. No Wokwi, habilite a conexão TLS na porta `8883` e configure o certificado/chave do dispositivo e o Amazon Root CA 1. O sketch anterior usava HiveMQ sem TLS e `millis()/1000`; não corresponde ao pipeline AWS provisionado.
-
-Exemplo do JSON serializado com ArduinoJson:
-
-```cpp
-#include <ArduinoJson.h>
-StaticJsonDocument<256> doc;
-doc["device_id"] = "esp32-torno-01";
-doc["machine_type"] = "USINAGEM";
-doc["timestamp"] = unixEpochSeconds; // horário UTC obtido via NTP
-doc["temperatura"] = 72.8;
-doc["vibracao"] = 2.45;
-doc["rpm"] = 3480;
-doc["status"] = "OPERATIONAL";
-doc["pecas_produzidas"] = 15;
-doc["pecas_defeito"] = 1;
-char payload[256];
-serializeJson(doc, payload);
-client.publish("industria/smartn1/telemetria", payload, false);
-```
+O guia completo de circuito com três potenciômetros, certificados TLS, firmware Arduino e validação da cadeia de ingestão está em [Guia ESP32 e AWS IoT Core no Wokwi](07_guia_esp32_wokwi.md). O tópico é `industria/smartn1/telemetria`; os campos obrigatórios são `device_id`, `temperatura`, `vibracao` e `rpm`.
 

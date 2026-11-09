@@ -52,6 +52,8 @@ Exemplo de mensagem publicada:
 
 `timestamp` é Unix Epoch em segundos; use NTP/horário UTC no ESP32. Se for omitido, a Lambda usa o horário de recebimento. `status`, `machine_type`, `pecas_produzidas` e `pecas_defeito` são opcionais; temperatura, vibração e RPM devem ser numéricos.
 
+Para criar o circuito com potenciômetros e publicar com TLS/QoS 1 no Wokwi, siga o [guia de montagem do ESP32](07_guia_esp32_wokwi.md).
+
 ---
 
 ## 2. Contrato da API de Ciência de Dados (Python Flask)

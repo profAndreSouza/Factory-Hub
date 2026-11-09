@@ -42,6 +42,9 @@ terraform.tfvars
 .env
 .env.*
 !.env.example
+secrets.h
+*.key
+certs/
 
 # IDEs & SO
 .idea/

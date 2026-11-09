@@ -152,6 +152,8 @@ flowchart TB
 ```
 `timestamp` deve ser Unix Epoch em segundos UTC obtido por NTP; não use `millis()/1000`. A conexão com AWS IoT Core usa o endpoint de dados da conta, MQTTS na porta 8883, certificado/chave do dispositivo e Amazon Root CA 1. Veja o passo a passo em [`docs/01_automacao_industrial.md`](docs/01_automacao_industrial.md#32-tópico-implantado-no-aws-iot-core).
 
+Para montar o circuito Wokwi com três potenciômetros, configurar certificados e executar o firmware completo, consulte o [guia ESP32 + Wokwi](docs/07_guia_esp32_wokwi.md).
+
 ### 5.2. Endpoint da API Python Flask (Predição)
 **Rota:** `POST /predict`
 - **Request:**
