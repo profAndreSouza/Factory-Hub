@@ -27,7 +27,10 @@ jobs:
           deployment_command=$(cat <<'REMOTE_SCRIPT'
           set -euo pipefail
           if ! command -v aws >/dev/null 2>&1 || ! command -v docker >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
-            dnf install -y awscli-2 docker git curl
+            dnf install -y awscli-2 docker git
+          fi
+          if ! command -v curl >/dev/null 2>&1; then
+            dnf install -y curl-minimal
           fi
           systemctl enable --now docker
           if ! docker compose version >/dev/null 2>&1; then

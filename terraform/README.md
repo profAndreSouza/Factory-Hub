@@ -6,6 +6,8 @@ O Terraform cria VPC, EC2 com Docker e SSM Agent, RDS PostgreSQL privado, SQS/DL
 
 O backend Java usa o RDS quando executado com o perfil `postgres`. O Terraform publica host, database, username e senha em parâmetros do Systems Manager sob `/factoryhub/academy/rds`; a senha é `SecureString`. Também publica as configurações do Docker Hub e InfluxDB sob `/factoryhub/academy/runtime`, com token e senha do InfluxDB como `SecureString`. O deployment via SSM busca esses parâmetros pela instance profile e reconstrói o `.env` da EC2 sem incluir segredos no comando enviado pelo GitHub. Isso permite recuperar a implantação mesmo quando o bootstrap da EC2 não terminou.
 
+No Amazon Linux 2023, o bootstrap usa `curl-minimal` que já vem na AMI e não tenta instalar o pacote `curl`, que conflita com ele.
+
 ## 1. Crie o bucket do state antes do primeiro workflow
 
 O bucket S3 é um pré-requisito e fica fora dos recursos gerenciados por este Terraform. Crie-o uma única vez pela AWS Console, na mesma região configurada em `AWS_REGION`:
