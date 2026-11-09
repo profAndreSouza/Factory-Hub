@@ -48,23 +48,19 @@ Todo commit deve seguir a padronização:
 
 ---
 
-## 3. Pirâmide de Testes & Quality Gates
+## 3. Piramide de Testes & Quality Gates
 
-```
-       / \
-      / E2E \       Testes Ponta a Ponta (Simulação ESP32 até Dashboard React)
-     /───────\
-    / Integração \   Testes de Rotas HTTP, processamento SQS pela Lambda e conexões InfluxDB/PostgreSQL
-   /───────────────\
-  /    Unitários    \ Testes Isolados (JUnit 5 para regras OEE, Pytest para ML)
- /───────────────────\
-```
+O projeto implementa testes unitarios para componentes React e logica de treinamento Flask, testes de integracao HTTP para a API Flask e endpoints Spring MVC, e testes E2E de navegacao no Chromium. Os testes de API usam fontes/servicos substitutos para nao depender de AWS, RDS, InfluxDB ou Docker durante a validacao.
 
-### Quality Gate Obrigatório no CI:
-O pipeline do GitHub Actions impede o merge para `main` se:
-1. Qualquer teste unitário ou de integração falhar.
-2. A cobertura de código for inferior a **80%**.
-3. O linter acusar violações de estilo de código.
+### Quality Gate Obrigatorio no CI
+O workflow `ci.yml` chama o workflow reutilizavel `quality-gates.yml` em pull requests, pushes para `main`/`develop` e execucoes manuais. A publicacao manual chama os mesmos gates e so inicia o job de Docker Hub quando todos passam:
+
+1. **Flask:** testes unitarios de preparacao temporal/treinamento e testes de integracao das rotas `/health`, `/model/info`, `/predict` e `/train`.
+2. **Java:** testes de integracao HTTP e validacao dos contratos REST com MockMvc.
+3. **React:** testes unitarios da navegacao, verificacao TypeScript e build de producao.
+4. **E2E:** navegador Chromium abre o portal, navega entre modulos e verifica a pagina de automacao; as respostas da API sao isoladas com fixtures para testar o fluxo da interface.
+
+Qualquer falha bloqueia o job `publish`, que depende de `quality-gates`. Configure tambem `quality-gates / Flask unit and integration tests`, `quality-gates / Java backend unit and API integration tests`, `quality-gates / React unit tests and production build` e `quality-gates / Browser end-to-end tests` como checks obrigatorios nas regras de branch se quiser bloquear merges.
 
 ---
 
@@ -80,5 +76,4 @@ O repositório possui dois workflows separados:
 
 2. `.github/workflows/terraform.yml` é iniciado manualmente e executa `init`, validação, `plan` e `apply` usando state remoto S3. O `apply` ocorre automaticamente após o `plan` dentro da mesma execução; iniciar o workflow provisiona recursos e pode gerar custos.
 
-O deploy usa a imagem `latest` já publicada no Docker Hub. Para publicar manualmente as imagens Flask, Java e React, execute `.github/workflows/publish-dockerhub.yml` em **Actions → Publish images to Docker Hub → Run workflow**, selecionando a branch `main`. O workflow publica `latest` e `sha-<commit>` e requer os Secrets `DOCKERHUB_USERNAME` e `DOCKERHUB_TOKEN`. A publicação não executa o deploy; inicie `deploy-ssm.yml` depois que o build terminar. Os Secrets AWS usados no deploy incluem `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN`. As Repository variables necessárias para região, bucket do state e roles IAM estão documentadas em `terraform/README.md`. Renove as credenciais AWS Academy quando expirarem. A seção Quality Gates descreve os critérios desejados; o workflow atual ainda não possui job de testes.
-
+O deploy usa a imagem `latest` ja publicada no Docker Hub. Para publicar manualmente as imagens Flask, Java e React, execute `.github/workflows/publish-dockerhub.yml` em **Actions -> Publish images to Docker Hub -> Run workflow**, selecionando a branch `main`. Antes de publicar, o workflow executa os quatro quality gates. Somente com todos aprovados ele autentica no Docker Hub e publica `latest` e `sha-<commit>`. A publicacao nao executa o deploy; inicie `deploy-ssm.yml` depois que o build terminar. Os Secrets AWS usados no deploy incluem `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN`. As Repository variables necessarias para regiao, bucket do state e roles IAM estao documentadas em `terraform/README.md`. Renove as credenciais AWS Academy quando expirarem.

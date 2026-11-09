@@ -7,8 +7,13 @@ permissions:
   contents: read
 
 jobs:
+  quality-gates:
+    name: Required quality gates
+    uses: ./.github/workflows/quality-gates.yml
+
   publish:
     name: Build and publish images
+    needs: quality-gates
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
