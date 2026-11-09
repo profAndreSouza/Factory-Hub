@@ -8,6 +8,8 @@
 
 ## 1. Visão Geral do Projeto
 
+> **Roteiro para sala de aula:** o diretório [`tutorial/`](tutorial/README.md) organiza a reprodução do Factory Hub em oito aulas, começando pela visão geral e avançando da telemetria até o deploy.
+
 O **Factory Hub** é uma plataforma distribuída de manufatura inteligente inspirada no conceito de **Fábrica Virtual / Célula Fabril Smart N1**. A arquitetura conecta sinais da borda simulada, dados operacionais, predição de condição de máquinas e visualização gerencial do **OEE (Overall Equipment Effectiveness)**. A API Flask treina uma Random Forest com o histórico do InfluxDB, que pode conter telemetria sintética de demonstração e dados recebidos do ESP32.
 
 ### Alinhamento com as Unidades Curriculares

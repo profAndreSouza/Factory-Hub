@@ -2,6 +2,8 @@
 
 Esta pasta reúne **toda a base conceitual, referências teóricas, especificações de engenharia e guias práticos** extraídos das 4 unidades curriculares integradas, tornando este repositório **100% autônomo e independente** para ser versionado separadamente.
 
+> Para conduzir a reprodução em sala, consulte também o [tutorial do Factory Hub em oito aulas](../tutorial/README.md).
+
 ---
 
 ## Estrutura da Documentação
