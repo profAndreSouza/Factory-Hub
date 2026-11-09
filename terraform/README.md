@@ -1,5 +1,7 @@
 # Provisionamento AWS do Factory Hub
 
+Para a explicação completa arquivo por arquivo, com diagrama da topologia AWS, consulte o [Manual do Terraform e da infraestrutura AWS](../docs/08_manual_terraform.md).
+
 O workflow `.github/workflows/terraform.yml` executa Terraform no GitHub Actions com credenciais temporárias do Learner Lab e state remoto no S3. O runner não depende de credenciais AWS locais. O provisionamento é iniciado manualmente em **Actions → Provisionar infraestrutura AWS → Run workflow**.
 
 O Terraform cria VPC, EC2 com Docker e SSM Agent, RDS PostgreSQL privado, SQS/DLQ, regra IoT, Lambda consumidora e rede. A EC2 não recebe conexões SSH. A configuração e o deploy SSM usam APIs HTTPS; o SSM Agent inicia conexões de saída HTTPS/443.

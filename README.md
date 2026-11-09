@@ -245,3 +245,5 @@ Factory Hub/
 
 Consulte a **[central de documentação](./docs/README.md)** para os guias técnicos e curriculares. As instruções específicas de cada serviço estão nos respectivos `README.md`.
 
+Para entender o provisionamento da nuvem arquivo por arquivo, incluindo a topologia AWS criada pelo Terraform, consulte o [manual do Terraform](./docs/08_manual_terraform.md).
+

@@ -17,6 +17,7 @@ Esta pasta reúne **toda a base conceitual, referências teóricas, especificaç
 | **[05_contratos_e_especificacoes.md](./05_contratos_e_especificacoes.md)** | Dicionário de dados, schemas JSON (MQTT), contratos OpenAPI/REST (Flask & Java) e esquema de banco de dados. | **Arquitetura de Software** |
 | **[06_guia_aws_academy.md](./06_guia_aws_academy.md)** | Perfis IAM, Systems Manager sem SSH, orcamento e boas praticas do Learner Lab. | Operacao Cloud |
 | **[07_guia_esp32_wokwi.md](./07_guia_esp32_wokwi.md)** | Montagem com três potenciômetros, certificados MQTT TLS, firmware QoS 1 e validação da ingestão no AWS IoT Core. | Automação Industrial / IIoT |
+| **[08_manual_terraform.md](./08_manual_terraform.md)** | Manual arquivo por arquivo do Terraform, arquitetura AWS provisionada, state remoto, segurança, variáveis e workflows. | Computação em Nuvem / IaC |
 
 
 ---
