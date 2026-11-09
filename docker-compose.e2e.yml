@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile
     image: factoryhub-backend:e2e
     environment:
-      SPRING_PROFILES_ACTIVE: mock,offline
+      SPRING_PROFILES_ACTIVE: mock
       SERVER_PORT: 8080
       ML_SERVICE_BASE_URL: http://ml-service:5000
     depends_on:

@@ -53,7 +53,7 @@ jobs:
           pip install -r ml-service/requirements.txt pytest
       - name: Run tests
         working-directory: ml-service
-        run: pytest -q
+        run: python -m pytest -q
 
   java-tests:
     name: Java backend API integration tests
@@ -115,7 +115,12 @@ jobs:
           cache-dependency-path: frontend-react/package-lock.json
       - run: npm ci
       - name: Start Java and React integration stack
-        run: docker compose -f ../docker-compose.e2e.yml up -d --build --wait --wait-timeout 240
+        run: |
+          if ! docker compose -f ../docker-compose.e2e.yml up -d --build --wait --wait-timeout 240; then
+            docker compose -f ../docker-compose.e2e.yml ps >&2 || true
+            docker compose -f ../docker-compose.e2e.yml logs --no-color --tail=120 >&2 || true
+            exit 1
+          fi
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Run browser tests
