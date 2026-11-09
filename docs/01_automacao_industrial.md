@@ -12,7 +12,7 @@ O modelo **ANSI/ISA-95** padroniza a interface entre sistemas corporativos de TI
 | Nível ISA-95 | Descrição | No Ecossistema Factory Hub |
 |---|---|---|
 | **Nível 4** | Planejamento de Recursos Empresariais (ERP) | Nuvem AWS (EC2, RDS PostgreSQL, relatórios executivos). |
-| **Nível 3** | Gerenciamento de Operações de Manufatura (MES) | Backend Java (Spring Boot) consulta dados operacionais e oferece APIs; OEE com dados reais ainda está em desenvolvimento. |
+| **Nível 3** | Gerenciamento de Operações de Manufatura (MES) | Backend Java (Spring Boot) consulta dados operacionais e oferece APIs; calcula OEE parcial com os intervalos observados, sem calendário de turnos. |
 | **Nível 2** | Supervisão de Processo e SCADA | Não implementado como SCADA neste protótipo; o painel web apresenta a telemetria recebida. |
 | **Nível 1** | Controle Básico e Aquisição de Dados (CLP) | Microcontrolador ESP32 processando sinais digitais e analógicos. |
 | **Nível 0** | Processo Físico de Manufatura | Sensores (temperatura, vibração, RPM) e atuadores na célula de usinagem. |

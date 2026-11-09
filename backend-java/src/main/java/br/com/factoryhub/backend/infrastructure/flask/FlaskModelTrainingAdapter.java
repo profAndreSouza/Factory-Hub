@@ -23,9 +23,12 @@ public class FlaskModelTrainingAdapter implements ModelTrainingPort {
     }
 
     @Override
-    public Map<String, Object> startTraining() {
+    public Map<String, Object> startTraining(String dataOrigin) {
         try {
-            return flaskClient.post().uri("/train").retrieve().body(RESPONSE_TYPE);
+            return flaskClient.post()
+                    .uri("/train")
+                    .body(Map.of("data_origin", dataOrigin))
+                    .retrieve().body(RESPONSE_TYPE);
         } catch (RestClientException exception) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Não foi possível iniciar o treinamento no serviço Flask.", exception);

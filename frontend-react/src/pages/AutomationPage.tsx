@@ -267,7 +267,7 @@ export const AutomationPage: React.FC = () => {
                 <span className="w-3 h-3 rounded-full bg-red-500" />
                 <span className="w-3 h-3 rounded-full bg-amber-500" />
                 <span className="w-3 h-3 rounded-full bg-green-500" />
-                <span className="text-xs text-gray-400 ml-2 font-mono">mqtt-broker — broker.factory-hub.local:1883</span>
+                <span className="text-xs text-gray-400 ml-2 font-mono">Exemplo simulado · AWS IoT Core usa endpoint da conta · MQTTS 8883</span>
               </div>
               <div
                 ref={logRef}

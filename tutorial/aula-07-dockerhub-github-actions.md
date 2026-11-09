@@ -7,7 +7,7 @@ Os alunos já estudaram Docker; esta aula mostra a passagem do container local p
 ## Objetivos
 
 - Diferenciar Dockerfile, imagem, container e registry.
-- Explicar tags `latest` e `sha-<commit>` e a rastreabilidade da versão.
+- Explicar tags `latest` e `sha-<commit>` e usar a tag imutável no deploy.
 - Ler jobs e steps de um workflow GitHub Actions.
 - Entender lint, testes, E2E e build de container como gates.
 - Explicar por que publicar e fazer deploy são etapas manuais separadas.
@@ -26,9 +26,9 @@ Um `docker build` local não publica nada. Um push envia uma imagem ao registry.
 
 ### Tags e rastreabilidade
 
-- `latest` é uma referência mutável conveniente para o fluxo simples da aula.
+- `latest` é uma referência mutável útil para consulta rápida no registry.
 - `sha-<commit>` aponta para uma versão ligada a um commit do Git e facilita auditoria e rollback.
-- Para implantação reproduzível, a equipe pode escolher o SHA em vez de depender de `latest`.
+- O workflow de deploy exige o SHA completo e instala essa versão; não usa `latest`.
 
 O tag é identificação, não mecanismo de segurança por si só. Segredos do Docker Hub devem ficar em GitHub Secrets.
 
@@ -60,7 +60,7 @@ flowchart LR
     SSM --> EC2[EC2: Compose pull/up]
 ```
 
-O workflow `ci.yml` valida alterações em PRs e pushes. O workflow `publish-dockerhub.yml` é manual e seleciona a branch `main`. Ele chama os mesmos gates antes de iniciar o login e push. O workflow `deploy-ssm.yml` é disparado separadamente.
+O workflow `ci.yml` valida alterações em PRs e pushes. O workflow `publish-dockerhub.yml` é manual e seleciona a branch `main`. Ele chama os mesmos gates antes de iniciar o login e push. O workflow `deploy-ssm.yml` é disparado separadamente e pede o SHA completo publicado para instalar as imagens e a configuração correspondentes.
 
 ## Por que SSM em vez de SSH
 
@@ -74,7 +74,7 @@ Isso não significa que o SSM ignora permissões: a EC2 precisa de instance prof
 2. Relacionar cada imagem a seu serviço no `docker-compose.cloud.yml`.
 3. Abrir `quality-gates.yml`; cada grupo explica um job e qual falha deve bloquear publicação.
 4. Abrir `publish-dockerhub.yml`; localizar o `needs: quality-gates`, login, contexto Docker e tags.
-5. No histórico de uma execução já publicada, comparar `latest` e `sha-<commit>`.
+5. Copiar o SHA do commit publicado e informá-lo no workflow manual de deploy.
 6. Abrir `deploy-ssm.yml`; localizar envio de comando, parâmetros de runtime e consulta do estado SSM.
 7. Apresentar a EC2 baixando imagens sem conexão SSH de entrada.
 

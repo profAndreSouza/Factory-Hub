@@ -49,7 +49,7 @@ curl -X POST http://localhost:8080/api/v1/predicoes \
   -d '{"device_id":"esp32-torno-01","temperatura":100,"vibracao":9,"rpm":3000}'
 ```
 
-Uma resposta `ATENCAO` ou `RISCO_ANOMALIA` deve aparecer na página e, no perfil cloud (`postgres,influx`), ser persistida como alerta no RDS, visível em `GET /api/v1/alertas`. `OPERACIONAL` não cria alerta. Em execução local com adapter `mock`, a predição pode ser servida pelo mock e não grava no PostgreSQL; para exercitar a persistência, confirme que Java está no perfil cloud e conectado ao RDS.
+Uma resposta `ATENCAO` ou `RISCO_ANOMALIA` deve aparecer na página e, no perfil cloud (`postgres,influx`), ser persistida como alerta no RDS, visível em `GET /api/v1/alertas`. `OPERACIONAL` não cria alerta. A predição é iniciada pelo usuário no playground da interface; a ingestão MQTT não aciona inferência automaticamente. Em execução local com adapter `mock`, a predição pode ser servida pelo mock e não grava no PostgreSQL; para exercitar a persistência, confirme que Java está no perfil cloud e conectado ao RDS.
 
 As métricas de treino confirmam que o pipeline executou, não a qualidade industrial do modelo: o dataset didático usa rótulos gerados por regras de temperatura/vibração e pode misturar telemetria sintética com dados do ESP32. Avalie com medições rotuladas de falhas reais antes de usar para decisões de manutenção.
 

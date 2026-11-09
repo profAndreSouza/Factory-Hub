@@ -17,11 +17,9 @@ interface PipelineStep {
 }
 
 const INITIAL_PIPELINE: PipelineStep[] = [
-  { id: 'lint', label: 'Lint', icon: '🔍', status: 'pending' },
-  { id: 'test', label: 'Unit Tests', icon: '🧪', status: 'pending' },
-  { id: 'build', label: 'Build Docker', icon: '🐳', status: 'pending' },
-  { id: 'push', label: 'Push Hub', icon: '📦', status: 'pending' },
-  { id: 'deploy', label: 'SSH Deploy', icon: '🚀', status: 'pending' },
+  { id: 'quality', label: 'CI + quality gates', icon: '🧪', status: 'pending' },
+  { id: 'publish', label: 'Publicação manual', icon: '📦', status: 'pending' },
+  { id: 'deploy', label: 'Deploy manual via SSM', icon: '🚀', status: 'pending' },
 ];
 
 const CALMS = [
@@ -98,12 +96,10 @@ export const DevopsPage: React.FC = () => {
       setPipeline(prev =>
         prev.map((s, idx) => (idx === i ? { ...s, status: 'running' } : s))
       );
-      await new Promise(r => setTimeout(r, 900 + Math.random() * 400));
-      const success = Math.random() > 0.05; // 95% success rate
+      await new Promise(r => setTimeout(r, 900));
       setPipeline(prev =>
-        prev.map((s, idx) => (idx === i ? { ...s, status: success ? 'success' : 'failed' } : s))
+        prev.map((s, idx) => (idx === i ? { ...s, status: 'success' } : s))
       );
-      if (!success) break;
     }
     setPipelineRunning(false);
   };
@@ -242,7 +238,7 @@ export const DevopsPage: React.FC = () => {
                   disabled={pipelineRunning}
                   className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors"
                 >
-                  {pipelineRunning ? '⟳ Executando...' : '▶ Simulate Run'}
+                  {pipelineRunning ? '⟳ Simulando...' : '▶ Simular fluxo didático'}
                 </button>
                 <button
                   onClick={resetPipeline}
@@ -252,6 +248,10 @@ export const DevopsPage: React.FC = () => {
                   ↺ Reset
                 </button>
               </div>
+
+              <p className="mb-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                Esta animação é demonstrativa e não executa GitHub Actions. Na aplicação real, CI e quality gates rodam no workflow de CI; a publicação no Docker Hub e o deploy via SSM são workflows manuais separados. O Terraform também é executado em workflow próprio.
+              </p>
 
               <div className="flex items-center gap-2 overflow-x-auto pb-2">
                 {pipeline.map((step, idx) => (

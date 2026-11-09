@@ -15,9 +15,9 @@ O modelo monta pares temporais de leituras consecutivas, separa treino e validac
 - `POST /predict`: recebe `device_id`, `temperatura`, `vibracao`, `rpm`; retorna a classe prevista para a próxima leitura registrada, risco estimado, recomendação, versão do modelo, instante da análise e origem dos dados de treino.
 - `GET /health`: estado de disponibilidade do serviço e do modelo carregado.
 - `GET /model/info`: algoritmo, atributos, classes, métricas, tamanho e origem do conjunto de treino.
-- `POST /train`: inicia um retreinamento em segundo plano usando o histórico atual do InfluxDB.
+- `POST /train` com `{"data_origin":"ALL|DEMO|LIVE"}`: inicia um retreinamento em segundo plano usando todas as medições ou apenas a origem selecionada do InfluxDB.
 - `GET /training/status`: mostra etapa, percentual, mensagens, métricas e resultado do treinamento em andamento ou mais recente.
-- `GET /training/data-info`: conta medicoes e pares temporais disponiveis no InfluxDB sem iniciar treinamento.
+- `GET /training/data-info`: conta medições e pares temporais disponíveis, separados por `DEMO` e `LIVE`, sem iniciar treinamento.
 
 No frontend, a página **Ciência de Dados > Laboratório** permite iniciar esse fluxo e acompanhar as mensagens. O React chama as rotas de treinamento do backend Java; somente o backend conversa com o Flask. O modelo atual continua atendendo predições enquanto a nova versão é treinada e é substituído quando o treino termina.
 

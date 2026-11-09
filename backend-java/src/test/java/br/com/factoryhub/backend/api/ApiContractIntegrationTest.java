@@ -2,6 +2,7 @@ package br.com.factoryhub.backend.api;
 
 import br.com.factoryhub.backend.api.dto.PredictionResponse;
 import br.com.factoryhub.backend.application.port.OperationalDataPort;
+import br.com.factoryhub.backend.application.port.ModelTrainingPort;
 import br.com.factoryhub.backend.application.port.PredictionPort;
 import br.com.factoryhub.backend.application.port.TelemetryConsolidationPort;
 import br.com.factoryhub.backend.application.port.TelemetryDataPort;
@@ -24,7 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = {FactoryQueryController.class, PredictionController.class})
+@WebMvcTest(controllers = {FactoryQueryController.class, PredictionController.class, ModelTrainingController.class})
 class ApiContractIntegrationTest {
     @Autowired
     private MockMvc mvc;
@@ -40,6 +41,9 @@ class ApiContractIntegrationTest {
 
     @MockBean
     private PredictionPort predictionData;
+
+    @MockBean
+    private ModelTrainingPort modelTraining;
 
     @Test
     void predictionRouteValidatesPayloadAndReturnsFlaskContract() throws Exception {
@@ -79,5 +83,22 @@ class ApiContractIntegrationTest {
                 .andExpect(jsonPath("$").isArray());
 
         verify(consolidationData).findRecent(eq("esp32-torno-01"), eq(100));
+    }
+
+    @Test
+    void trainingRouteForwardsSelectedTelemetryOrigin() throws Exception {
+        when(modelTraining.startTraining("LIVE")).thenReturn(java.util.Map.of("state", "running"));
+
+        mvc.perform(post("/api/v1/treinamentos?data_origin=live"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.state").value("running"));
+
+        verify(modelTraining).startTraining("LIVE");
+    }
+
+    @Test
+    void trainingRouteRejectsUnknownTelemetryOrigin() throws Exception {
+        mvc.perform(post("/api/v1/treinamentos?data_origin=ARCHIVE"))
+                .andExpect(status().isBadRequest());
     }
 }

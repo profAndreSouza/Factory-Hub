@@ -1,5 +1,8 @@
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
+import factoryhub_ml.data_source as data_source_module
+from factoryhub_ml.data_source import InfluxTrainingDataSource
 from factoryhub_ml.training import _next_reading_examples, load_or_train_model
 
 
@@ -53,3 +56,42 @@ def test_training_saves_future_validation_metrics_and_model(tmp_path):
     assert artifact["raw_measurements"] == 240
     assert artifact["metrics"]["test_records"] > 0
     assert 0 <= artifact["metrics"]["accuracy"] <= 1
+
+
+def test_influx_training_source_can_select_demo_or_live_data_without_mutating_base():
+    source = InfluxTrainingDataSource("http://influx", "token", "org", "bucket")
+
+    demo_source = source.for_origin("DEMO")
+    live_source = source.for_origin("LIVE")
+
+    assert source.source_name == "INFLUXDB"
+    assert demo_source.source_name == "INFLUXDB_DEMO"
+    assert live_source.source_name == "INFLUXDB_LIVE"
+
+
+def test_influx_training_data_info_counts_demo_and_live_separately(monkeypatch):
+    records = [
+        SimpleNamespace(values={"device_id": "demo-1", "data_origin": "DEMO"}, get_value=lambda: 100),
+        SimpleNamespace(values={"device_id": "live-1", "data_origin": "LIVE"}, get_value=lambda: 7),
+    ]
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def query_api(self):
+            return SimpleNamespace(query=lambda **_kwargs: [SimpleNamespace(records=records)])
+
+    monkeypatch.setattr(data_source_module, "InfluxDBClient", FakeClient)
+    info = InfluxTrainingDataSource("http://influx", "token", "org", "bucket").count_training_rows()
+
+    assert info["raw_measurements"] == 107
+    assert info["training_records"] == 105
+    assert info["origins"]["DEMO"] == {"raw_measurements": 100, "training_records": 99}
+    assert info["origins"]["LIVE"] == {"raw_measurements": 7, "training_records": 6}

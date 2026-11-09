@@ -175,7 +175,7 @@ O navegador envia a solicitação somente ao backend Java. O backend valida o pa
 **Requisição:** mesmo formato do contrato Flask, com `device_id`, `temperatura`, `vibracao` e `rpm`.
 
 **Resposta:** mesmo formato da resposta Flask, incluindo `status_previsto`, `probabilidade_falha`, `recomendacao` e `modelo_versao`.
-No perfil cloud (`postgres,influx`), o adapter do backend encaminha a requisição ao Flask privado e persiste predições não operacionais como alertas no RDS. O perfil `mock` permanece disponível para desenvolvimento local offline. O modelo atual prediz a classe da proxima leitura registrada da maquina; o horario depende da frequencia de amostragem e nao representa um horizonte fixo em minutos.
+No perfil cloud (`postgres,influx`), o adapter do backend encaminha a requisição ao Flask privado e persiste predições não operacionais como alertas no RDS. O alerta é gerado quando a interface solicita a predição; a chegada de telemetria MQTT, por si só, não inicia inferência nem cria alertas. O perfil `mock` permanece disponível para desenvolvimento local offline. O modelo atual prediz a classe da próxima leitura registrada da máquina; o horário depende da frequência de amostragem e não representa um horizonte fixo em minutos.
 
 ### 3.5. Saúde dos Serviços: `GET /api/v1/health`
 O backend agrega o estado dos componentes e fornece a lista exibida pelo frontend. Inclua pelo menos nome, estado e, quando disponível, latência. O backend é a única fonte do estado do Flask, banco, broker e demais serviços.
@@ -205,10 +205,10 @@ No perfil cloud, os adapters ativos usam as origens abaixo:
 | Série temporal recente | InfluxDB; recebe a telemetria processada pela Lambda e também pode conter dados sintéticos de demonstração |
 | Treinamento e inferência | Flask privado; treinamento lê o histórico do InfluxDB e predições são solicitadas pelo backend Java |
 
-O perfil cloud ativa os adapters PostgreSQL, InfluxDB e Flask. Os adapters em `infrastructure/mock` são usados no perfil offline/local. Para o OEE didático, o período planejado corresponde ao intervalo coberto por amostras consecutivas (até 9 s); `RUNNING`/RPM ativo conta como tempo operando e `STOPPED`/RPM zero como parada. A capacidade ideal de 1.200 peças/hora decorre do ciclo simulado de uma peça a cada 3 s.
+O perfil cloud ativa os adapters PostgreSQL, InfluxDB e Flask. Os adapters em `infrastructure/mock` são usados no perfil offline/local. O OEE `LIVE_PARTIAL` cobre somente intervalos observados entre amostras consecutivas (até 9 s); não representa o tempo planejado de um turno. `RUNNING`/RPM ativo conta como tempo operando e `STOPPED`/RPM zero como parada. A capacidade ideal de 1.200 peças/hora decorre do ciclo simulado de uma peça a cada 3 s.
 
 ### 3.7. Treinamento do modelo
-O frontend usa `POST /api/v1/treinamentos` para iniciar o retreino, `GET /api/v1/treinamentos/status` para acompanhar mensagens e metricas e `GET /api/v1/treinamentos/data-info` para consultar as medicoes atuais. A contagem e consultada a cada 15 segundos e retorna `raw_measurements`, `training_records`, `training_data_source` e `observed_at`. `training_records` representa pares temporais: uma leitura atual para prever a classe da proxima leitura da mesma maquina. A contagem do ultimo treino so muda quando um novo treinamento termina.
+O frontend usa `POST /api/v1/treinamentos?data_origin=ALL|DEMO|LIVE` para iniciar o retreino, `GET /api/v1/treinamentos/status` para acompanhar mensagens e métricas e `GET /api/v1/treinamentos/data-info` para consultar as medições atuais. A contagem é consultada a cada 15 segundos e retorna `raw_measurements`, `training_records`, `training_data_source`, `origins` e `observed_at`. `training_records` representa pares temporais: uma leitura atual para prever a classe da próxima leitura da mesma máquina. A contagem do último treino só muda quando um novo treinamento termina. No InfluxDB, `DEMO` e `LIVE` podem ser treinados separadamente; `ALL` combina as duas origens. Os rótulos continuam derivados dos limiares didáticos de temperatura e vibração.
 
 ## 4. Esquema de Banco de Dados (RDS PostgreSQL)
 

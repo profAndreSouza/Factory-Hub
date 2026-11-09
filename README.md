@@ -120,10 +120,10 @@ flowchart TB
 | **Buffer de Ingestão** | Amazon SQS (com DLQ) | Computação em Nuvem | Absorver picos de tráfego de múltiplos dispositivos e desacoplar a ingestão do processamento pela função Lambda. |
 | **Consumidor da fila** | AWS Lambda | Nuvem / Automação | Consumir mensagens da SQS por event source mapping, validar telemetria e gravar medições brutas no InfluxDB. |
 | **Banco Temporal** | InfluxDB (container na EC2) | Nuvem / Dados | Armazena telemetria bruta para consultas recentes e treinamento do modelo. |
-| **Banco Relacional** | Amazon RDS PostgreSQL (`db.t3.micro`) | Computação em Nuvem | Armazenamento persistente de cadastros (máquinas, linhas de produção, operadores), apontamento de turnos e logs consolidados de OEE. |
+| **Banco Relacional** | Amazon RDS PostgreSQL (`db.t3.micro`) | Computação em Nuvem | Armazena cadastro de máquinas, alertas, snapshots didáticos de OEE e consolidações de telemetria em janelas de cinco minutos. |
 | **API de Predição** | Python 3.12 + Flask + scikit-learn | Ciência de Dados | Consultar séries históricas no InfluxDB para treinar e servir uma Random Forest; aceitar dados sintéticos quando executado sem a integração local. |
 | **Backend de Negócio** | Java 17/21 + Spring Boot 3 | Computação em Nuvem | Ler séries brutas do InfluxDB, consolidar dados e calcular Disponibilidade, Performance e Qualidade (OEE) no RDS, e intermediar previsões da IA. |
-| **Interface do Usuário** | React 18 + Vite + TailwindCSS | DevOps / Frontend | Exibir gráficos em tempo real de telemetria, painéis de OEE por máquina/turno e alertas preditivos de manutenção. |
+| **Interface do Usuário** | React 18 + Vite + TailwindCSS | DevOps / Frontend | Exibe telemetria, OEE parcial no intervalo observado, consolidações e alertas de predições solicitadas pela interface. |
 | **Infraestrutura como Código** | Terraform + GitHub Actions + S3 | Computação em Nuvem | Validar, planejar e aplicar a topologia AWS por workflow manual, com credenciais em GitHub Secrets e state remoto versionado no S3. |
 | **Esteira de CI/CD** | GitHub Actions + Docker Hub + SSM | DevOps | Construir e publicar imagens versionadas, atualizar a EC2 por SSM e executar Terraform manualmente com state remoto no S3. |
 
@@ -182,7 +182,7 @@ Para montar o circuito Wokwi com três potenciômetros, configurar certificados 
 - `GET /api/v1/maquinas`: Lista todas as máquinas cadastradas e último status.
 - `GET /api/v1/telemetria/{deviceId}/recente`: Últimas medições brutas para plotagem de gráficos ao vivo.
 - `GET /api/v1/consolidados/{deviceId}/recente?limit=10`: Últimas janelas de cinco minutos consolidadas no RDS.
-- `GET /api/v1/indicadores/{deviceId}/oee?periodo=hoje`: Retorna Disponibilidade, Performance, Qualidade e OEE consolidado.
+- `GET /api/v1/indicadores/{deviceId}/oee?periodo=hoje`: Retorna Disponibilidade, Performance, Qualidade e OEE `LIVE_PARTIAL` quando houver amostras suficientes; caso contrário, usa o snapshot `DEMO`.
 - `GET /api/v1/alertas`: Lista alertas operacionais e predições não operacionais persistidas no RDS.
 
 ---

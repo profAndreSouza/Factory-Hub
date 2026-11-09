@@ -1,15 +1,15 @@
 # Referência Técnica: Ciência de Dados & Modelos Preditivos
 
 > **Unidade Curricular:** Ciência de Dados (80 horas / 20 Semanas)  
-> **Objetivo:** Transformar medições de telemetria industrial em diagnósticos preditivos através do ciclo CRISP-DM, redes neurais e indicadores OEE.
+> **Objetivo:** Explorar medições de telemetria industrial pelo ciclo CRISP-DM, modelos preditivos e indicadores OEE.
 
-> **Implementacao atual:** o servico em `ml-service/` treina uma Random Forest com o historico do InfluxDB. Cada leitura e usada para prever a classe da proxima leitura da mesma maquina, e a validacao usa um periodo futuro separado cronologicamente. Os rotulos sao didaticos e derivados de limites de temperatura e vibracao; metricas altas nao equivalem a qualidade comprovada para falhas reais.
+> **Implementação atual:** o serviço em `ml-service/` treina uma Random Forest com o histórico do InfluxDB. É possível selecionar dados `DEMO`, `LIVE` ou ambos. Cada leitura é usada para prever a classe da próxima leitura da mesma máquina, e a validação usa um período futuro separado cronologicamente. Os rótulos são didáticos e derivados de limites de temperatura e vibração; métricas altas não comprovam desempenho em falhas reais. A predição e o registro do alerta são iniciados sob solicitação pela interface; a ingestão MQTT não dispara inferência automaticamente.
 
 ---
 
 ## 1. Metodologia CRISP-DM Aplicada ao Factory Hub
 
-O ciclo **CRISP-DM (Cross-Industry Standard Process for Data Mining)** orienta a solução de inteligência artificial da célula fabril:
+O ciclo **CRISP-DM (Cross-Industry Standard Process for Data Mining)** orienta o experimento de classificação da célula fabril:
 
 ```mermaid
 flowchart LR

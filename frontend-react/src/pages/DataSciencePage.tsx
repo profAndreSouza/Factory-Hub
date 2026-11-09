@@ -74,6 +74,7 @@ export const DataSciencePage: React.FC = () => {
   const [trainingDataInfoError, setTrainingDataInfoError] = useState('');
   const [trainingLoading, setTrainingLoading] = useState(false);
   const [trainingError, setTrainingError] = useState('');
+  const [trainingOrigin, setTrainingOrigin] = useState<'ALL' | 'DEMO' | 'LIVE'>('ALL');
 
   useEffect(() => {
     getTelemetria('esp32-torno-01').then(setTelemetry).catch(() => setTelemetry([]));
@@ -124,7 +125,7 @@ export const DataSciencePage: React.FC = () => {
     setTrainingLoading(true);
     setTrainingError('');
     try {
-      setTraining(await startModelTraining());
+      setTraining(await startModelTraining(trainingOrigin));
     } catch {
       setTrainingError('Não foi possível iniciar o treinamento. Confira a conexão com o backend.');
     } finally {
@@ -353,16 +354,30 @@ export const DataSciencePage: React.FC = () => {
               <div>
                 <h2 className="text-base font-bold text-gray-800 dark:text-gray-100">Treinamento do modelo</h2>
                 <p className="mt-1 max-w-2xl text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                  O modelo é treinado automaticamente quando ainda não existe uma versão salva. Use o botão para treinar novamente com o histórico atual do InfluxDB.
+                  Escolha quais medições do InfluxDB usar. Os rótulos ainda são didáticos, calculados por limites de temperatura e vibração; este treinamento demonstra o fluxo e não comprova previsão de falhas industriais.
                 </p>
               </div>
-              <button
-                onClick={handleTrainModel}
-                disabled={trainingLoading || training?.state === 'running'}
-                className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {trainingLoading || training?.state === 'running' ? 'Treinando…' : 'Treinar modelo'}
-              </button>
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                <label className="sr-only" htmlFor="training-origin">Origem das medições para treinamento</label>
+                <select
+                  id="training-origin"
+                  value={trainingOrigin}
+                  onChange={event => setTrainingOrigin(event.target.value as 'ALL' | 'DEMO' | 'LIVE')}
+                  disabled={trainingLoading || training?.state === 'running'}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
+                >
+                  <option value="ALL">Demonstração + ESP32</option>
+                  <option value="DEMO">Somente demonstração</option>
+                  <option value="LIVE">Somente ESP32 (LIVE)</option>
+                </select>
+                <button
+                  onClick={handleTrainModel}
+                  disabled={trainingLoading || training?.state === 'running'}
+                  className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {trainingLoading || training?.state === 'running' ? 'Treinando…' : 'Treinar modelo'}
+                </button>
+              </div>
             </div>
 
             <div className="mt-4">
@@ -399,6 +414,11 @@ export const DataSciencePage: React.FC = () => {
                 Disponíveis agora no InfluxDB: {trainingDataInfo ? `${trainingDataInfo.raw_measurements.toLocaleString('pt-BR')} leituras / ${trainingDataInfo.training_records.toLocaleString('pt-BR')} pares` : 'consultando...'}.
                 {trainingDataInfo && <> Atualizado às {new Date(trainingDataInfo.observed_at).toLocaleTimeString('pt-BR')}.</>}
               </p>
+              {trainingDataInfo?.origins && (
+                <p>
+                  DEMO: {trainingDataInfo.origins.DEMO.raw_measurements.toLocaleString('pt-BR')} leituras · LIVE: {trainingDataInfo.origins.LIVE.raw_measurements.toLocaleString('pt-BR')} leituras.
+                </p>
+              )}
               {training?.raw_measurements !== undefined && (
                 <p>Último treino: {training.raw_measurements.toLocaleString('pt-BR')} leituras / {training.training_records?.toLocaleString('pt-BR')} pares usados.</p>
               )}

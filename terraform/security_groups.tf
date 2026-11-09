@@ -11,14 +11,6 @@ resource "aws_security_group" "app" {
     cidr_blocks = var.app_http_cidrs
   }
 
-  ingress {
-    description = "SSH access"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.app_http_cidrs
-  }
-
   egress {
     description = "Outbound HTTPS for SSM, GitHub, Docker Hub and package updates"
     from_port   = 443

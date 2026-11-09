@@ -2,6 +2,11 @@ name: Deploy through SSM
 
 on:
   workflow_dispatch:
+    inputs:
+      image_sha:
+        description: 40-character commit SHA already published to Docker Hub
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -18,9 +23,19 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
+      - name: Validate published image SHA
+        env:
+          IMAGE_SHA: ${{ inputs.image_sha }}
+        run: |
+          if [[ ! "$IMAGE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "Informe o SHA completo de 40 caracteres que foi publicado no Docker Hub."
+            exit 1
+          fi
+
       - name: Send deploy command through Systems Manager
         env:
-          IMAGE_TAG: latest
+          IMAGE_SHA: ${{ inputs.image_sha }}
+          IMAGE_TAG: sha-${{ inputs.image_sha }}
           AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
@@ -47,11 +62,11 @@ jobs:
               echo "/opt/factoryhub exists but is not an empty clone directory."
               exit 1
             fi
-            git clone --depth 1 "https://github.com/__GITHUB_REPOSITORY__.git" "$app_dir"
+            git clone --no-checkout "https://github.com/__GITHUB_REPOSITORY__.git" "$app_dir"
           fi
           cd "$app_dir"
-          git -c safe.directory="$app_dir" fetch origin main
-          git -c safe.directory="$app_dir" reset --hard origin/main
+          git -c safe.directory="$app_dir" fetch --depth 1 origin __IMAGE_SHA__
+          git -c safe.directory="$app_dir" reset --hard FETCH_HEAD
           rds_prefix=/factoryhub/academy/rds
           runtime_prefix=/factoryhub/academy/runtime
           dockerhub_username=$(aws ssm get-parameter --name "$runtime_prefix/dockerhub-username" --query 'Parameter.Value' --output text --region __AWS_REGION__)
@@ -68,7 +83,7 @@ jobs:
           temp_env=$(mktemp)
           cat > "$temp_env" <<ENV_FILE
           DOCKERHUB_USERNAME=$dockerhub_username
-          IMAGE_TAG=latest
+          IMAGE_TAG=__IMAGE_TAG__
           INFLUXDB_ORG=$influx_org
           INFLUXDB_BUCKET=$influx_bucket
           INFLUXDB_SEED_DAYS=$influx_seed_days
@@ -92,13 +107,14 @@ jobs:
           REMOTE_SCRIPT
           )
           deployment_command=${deployment_command//__AWS_REGION__/$AWS_REGION}
+          deployment_command=${deployment_command//__IMAGE_SHA__/$IMAGE_SHA}
           deployment_command=${deployment_command//__IMAGE_TAG__/$IMAGE_TAG}
           deployment_command=${deployment_command//__GITHUB_REPOSITORY__/$GITHUB_REPOSITORY}
           parameters=$(jq -cn --arg command "$deployment_command" '{commands:[$command]}')
           command_id=$(aws ssm send-command \
             --targets 'Key=tag:Project,Values=factoryhub' \
             --document-name 'AWS-RunShellScript' \
-            --comment "Factory Hub deploy ${GITHUB_SHA}" \
+            --comment "Factory Hub deploy $IMAGE_TAG" \
             --parameters "$parameters" \
             --query 'Command.CommandId' --output text)
 

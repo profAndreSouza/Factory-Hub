@@ -8,8 +8,11 @@ export async function predict(req: PredictRequest): Promise<PredictResponse> {
   return data;
 }
 
-export async function startModelTraining(): Promise<ModelTrainingStatus> {
-  const { data } = await api.post<ModelTrainingStatus>('/api/v1/treinamentos', {}, { timeout: 10000 });
+export async function startModelTraining(dataOrigin: 'ALL' | 'DEMO' | 'LIVE'): Promise<ModelTrainingStatus> {
+  const { data } = await api.post<ModelTrainingStatus>('/api/v1/treinamentos', {}, {
+    timeout: 10000,
+    params: { data_origin: dataOrigin },
+  });
   return data;
 }
 

@@ -66,6 +66,7 @@ def create_app(
         "trained_at": artifact["trained_at"],
         "model_version": artifact["model_version"],
     }
+    selected_training_source: TrainingDataSource = data_source
 
     def update_training(stage: str, message: str, progress: int) -> None:
         with training_lock:
@@ -85,7 +86,7 @@ def create_app(
         try:
             artifact = load_or_train_model(
                 resolved_model_path,
-                data_source,
+                selected_training_source,
                 progress_callback=update_training,
                 force_retrain=True,
             )
@@ -124,14 +125,27 @@ def create_app(
 
     @app.post("/train")
     def start_training() -> Any:
+        nonlocal selected_training_source
+        payload = request.get_json(silent=True) or {}
+        if not isinstance(payload, dict):
+            return jsonify({"error": "O corpo deve ser um objeto JSON."}), 400
+        data_origin = str(payload.get("data_origin", "ALL")).upper()
+        if data_origin not in {"ALL", "DEMO", "LIVE"}:
+            return jsonify({"error": "data_origin deve ser ALL, DEMO ou LIVE."}), 400
         with training_lock:
             if training_status["state"] == "running":
                 return jsonify(training_status), 202
+            if isinstance(data_source, InfluxTrainingDataSource):
+                selected_training_source = data_source.for_origin(data_origin)
+                training_message = f"Preparando treinamento com dados {data_origin} do InfluxDB."
+            else:
+                selected_training_source = data_source
+                training_message = f"Preparando treinamento com a fonte {data_source.source_name}."
             training_status.update({
                 "state": "running",
                 "stage": "starting",
                 "progress": 0,
-                "message": "Preparando um novo treinamento com os dados atuais do InfluxDB.",
+                "message": training_message,
                 "messages": [],
             })
             training_status["messages"].append({

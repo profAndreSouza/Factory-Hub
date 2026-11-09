@@ -20,7 +20,7 @@ class TrainingDataSource(Protocol):
     def fetch_training_rows(self) -> list[dict[str, object]]:
         """Return labelled sensor readings from the selected data source."""
 
-    def count_training_rows(self) -> dict[str, int]:
+    def count_training_rows(self) -> dict[str, object]:
         """Count current raw readings and one-step training examples."""
 
 
@@ -70,8 +70,6 @@ class MockTrainingDataSource:
 class InfluxTrainingDataSource:
     """Loads labelled historical sensor measurements from InfluxDB 2.x."""
 
-    source_name = "INFLUXDB"
-
     def __init__(
         self,
         url: str,
@@ -79,17 +77,32 @@ class InfluxTrainingDataSource:
         org: str,
         bucket: str,
         days: int = 30,
+        data_origin: str = "ALL",
     ) -> None:
         self.url = url
         self.token = token
         self.org = org
         self.bucket = bucket
         self.days = days
+        self.data_origin = data_origin.upper()
+
+    @property
+    def source_name(self) -> str:
+        return "INFLUXDB" if self.data_origin == "ALL" else f"INFLUXDB_{self.data_origin}"
+
+    def for_origin(self, data_origin: str) -> "InfluxTrainingDataSource":
+        return InfluxTrainingDataSource(
+            self.url, self.token, self.org, self.bucket, self.days, data_origin
+        )
 
     def fetch_training_rows(self) -> list[dict[str, object]]:
+        origin_filter = "" if self.data_origin == "ALL" else (
+            f'  |> filter(fn: (r) => r.data_origin == "{self.data_origin}")\n'
+        )
         flux = f'''from(bucket: "{self.bucket}")
   |> range(start: -{self.days}d)
   |> filter(fn: (r) => r._measurement == "machine_telemetry")
+{origin_filter}  |> filter(fn: (r) => r.data_origin == "DEMO" or r.data_origin == "LIVE")
   |> filter(fn: (r) => r._field == "temperatura" or r._field == "vibracao" or r._field == "rpm" or r._field == "pecas_produzidas" or r._field == "pecas_defeito")
   |> pivot(rowKey: ["_time", "device_id"], columnKey: ["_field"], valueColumn: "_value")
   |> sort(columns: ["_time"])
@@ -124,18 +137,35 @@ class InfluxTrainingDataSource:
                 })
         return rows
 
-    def count_training_rows(self) -> dict[str, int]:
+    def count_training_rows(self) -> dict[str, object]:
         flux = f'''from(bucket: "{self.bucket}")
   |> range(start: -{self.days}d)
   |> filter(fn: (r) => r._measurement == "machine_telemetry" and r._field == "temperatura")
-  |> group(columns: ["device_id"])
+  |> filter(fn: (r) => r.data_origin == "DEMO" or r.data_origin == "LIVE")
+  |> group(columns: ["device_id", "data_origin"])
   |> count(column: "_value")
 '''
         with InfluxDBClient(url=self.url, token=self.token, org=self.org) as client:
             tables = client.query_api().query(query=flux, org=self.org)
 
-        per_device_counts = [int(record.get_value() or 0) for table in tables for record in table.records]
+        counts_by_origin = {"DEMO": [], "LIVE": []}
+        for table in tables:
+            for record in table.records:
+                origin = str(record.values.get("data_origin", ""))
+                if origin in counts_by_origin:
+                    counts_by_origin[origin].append(int(record.get_value() or 0))
+        origins = {
+            origin: {
+                "raw_measurements": sum(counts),
+                "training_records": sum(max(0, count - 1) for count in counts),
+            }
+            for origin, counts in counts_by_origin.items()
+        }
+        if self.data_origin != "ALL":
+            return {**origins[self.data_origin], "origins": origins}
+        per_device_counts = counts_by_origin["DEMO"] + counts_by_origin["LIVE"]
         return {
             "raw_measurements": sum(per_device_counts),
             "training_records": sum(max(0, count - 1) for count in per_device_counts),
+            "origins": origins,
         }

@@ -12,7 +12,7 @@
 
 O problema é estimar a condição da próxima leitura de uma máquina a partir de sinais atuais. O serviço Flask busca o histórico no InfluxDB, organiza leituras por dispositivo e horário e constrói exemplos temporais: atributos da leitura atual e rótulo da próxima leitura. Assim, o sistema não usa a classe da própria leitura para prever a mesma linha.
 
-O projeto atual usa **Random Forest**. O histórico é dividido por ordem temporal em treino e validação futura para reduzir vazamento temporal. A acurácia mede a proporção de acertos; F1 macro calcula a média de F1 por classe e dá o mesmo peso a classes diferentes. Resultados muito altos podem indicar classes fáceis, desbalanceamento, rótulos derivados das mesmas faixas dos sensores ou amostra pouco representativa.
+O projeto atual usa **Random Forest**. O aluno pode treinar com dados `DEMO`, dados `LIVE` do ESP32 ou ambos. O histórico é dividido por ordem temporal em treino e validação futura para reduzir vazamento temporal. A acurácia mede a proporção de acertos; F1 macro calcula a média de F1 por classe e dá o mesmo peso a classes diferentes. Resultados muito altos podem indicar classes fáceis, desbalanceamento, rótulos derivados das mesmas faixas dos sensores ou amostra pouco representativa.
 
 O frontend solicita treino ao backend Java; o Java chama a API Flask. As mensagens de progresso e métricas voltam pelo Java. Para uma predição, o caminho também é React → Java → Flask → Java → React. O endereço Flask fica privado.
 
@@ -23,7 +23,7 @@ O frontend solicita treino ao backend Java; o Java chama a API Flask. As mensage
 3. Iniciar treinamento pelo botão e acompanhar as etapas e o progresso.
 4. Anotar número de leituras e pares temporais, acurácia, F1 macro e quantidade de validação.
 5. Alterar os valores de sensores no Wokwi e publicar uma sequência com padrões diferentes.
-6. Solicitar predição pela interface e conferir recomendação, classe e alerta.
+6. Solicitar predição pela interface e conferir recomendação, classe e alerta. A inferência é sob demanda; a entrada de cada mensagem MQTT não cria automaticamente uma predição.
 7. Discutir por que incluir dados novos não melhora automaticamente o modelo: ele precisa ser novamente treinado.
 
 ## Perguntas para avaliação

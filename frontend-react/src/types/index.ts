@@ -112,5 +112,6 @@ export interface ModelTrainingDataInfo {
   training_records: number;
   training_data_source: string;
   observed_at: string;
+  origins?: Record<'DEMO' | 'LIVE', { raw_measurements: number; training_records: number }>;
 }
 

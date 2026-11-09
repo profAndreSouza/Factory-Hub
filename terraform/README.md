@@ -73,7 +73,7 @@ O output `frontend_url` aponta para o portal HTTP na porta 80. InfluxDB na porta
 
 ## Deploy da aplicação via SSM
 
-Após o provisionamento, aguarde a EC2 aparecer **Online** no Systems Manager. Execute o workflow `.github/workflows/terraform.yml` para criar os parâmetros de runtime usados pelo Compose; em seguida, inicie manualmente `.github/workflows/deploy-ssm.yml` em **Actions → Deploy through SSM → Run workflow**. Esse workflow não constrói nem publica imagens: ele baixa `latest` do Docker Hub, atualiza o `.env` com valores do SSM e inicia o Compose. Atualize as credenciais AWS temporárias no GitHub sempre que expirarem.
+Após o provisionamento, aguarde a EC2 aparecer **Online** no Systems Manager. Execute o workflow `.github/workflows/terraform.yml` para criar os parâmetros de runtime usados pelo Compose; em seguida, publique as imagens aprovadas e inicie `.github/workflows/deploy-ssm.yml` em **Actions → Deploy through SSM → Run workflow**. Informe o SHA completo de 40 caracteres do commit publicado. O deploy baixa as imagens `sha-<commit>` do Docker Hub e configura o mesmo commit do repositório na EC2. Isso deixa o código e as três imagens rastreáveis e reproduzíveis. Atualize as credenciais AWS temporárias no GitHub sempre que expirarem.
 
 ## Destruir a infraestrutura
 

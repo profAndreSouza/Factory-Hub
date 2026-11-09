@@ -75,3 +75,10 @@ def test_training_endpoint_reports_completion_and_fresh_metrics(client):
     assert status["state"] == "completed"
     assert status["metrics"]["test_records"] > 0
     assert status["training_data_source"] == "TEST_FIXTURE"
+
+
+def test_training_rejects_unknown_data_origin(client):
+    response = client.post("/train", json={"data_origin": "ARCHIVE"})
+
+    assert response.status_code == 400
+    assert "ALL, DEMO ou LIVE" in response.json["error"]
