@@ -162,8 +162,6 @@ MQTTClient mqtt(1024);
 
 unsigned long lastPublish = 0;
 unsigned long lastReconnect = 0;
-time_t epochAtSync = 0;
-unsigned long millisAtSync = 0;
 uint32_t totalParts = 0;
 uint32_t scrapParts = 0;
 
@@ -181,20 +179,49 @@ bool connectMqtt() {
   return false;
 }
 
+bool connectWifi() {
+  Serial.println("\nConectando ao Wokwi-GUEST...");
+
+  WiFi.disconnect();
+  delay(100);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  const unsigned long start = millis();
+
+  while (WiFi.status() != WL_CONNECTED &&
+         millis() - start < 20000) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println();
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.printf(
+        "Wi-Fi não conectou. Status: %d\n",
+        static_cast<int>(WiFi.status())
+    );
+    return false;
+  }
+
+  Serial.print("Wi-Fi conectado. IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.printf("Sinal: %d dBm\n", WiFi.RSSI());
+
+  return true;
+}
+
 void setup() {
   Serial.begin(115200);
   analogReadResolution(12); // leitura simulada entre 0 e 4095
 
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD, 6);
 
-  Serial.print("Conectando ao Wi-Fi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+  while (!connectWifi()) {
+    Serial.println("Nova tentativa em 5 segundos...");
+    delay(5000);
   }
-  Serial.println("\nWi-Fi conectado.");
 
   // TLS exige relógio correto para validar a cadeia de certificados.
   configTime(0, 0, "pool.ntp.org", "time.google.com");
@@ -205,13 +232,6 @@ void setup() {
     Serial.print(".");
   }
   Serial.println();
-
-  // Use o NTP como base e millis() como relógio monotônico. Isso evita
-  // timestamps repetidos caso o relógio de parede do simulador fique parado.
-  epochAtSync = time(nullptr);
-  if (epochAtSync >= 1700000000) {
-    millisAtSync = millis();
-  }
 
   tls.setCACert(AWS_ROOT_CA);
   tls.setCertificate(DEVICE_CERT);
@@ -248,11 +268,11 @@ void loop() {
   }
   lastPublish = millis();
 
-  if (epochAtSync < 1700000000) {
+  const time_t timestamp = time(nullptr);
+  if (timestamp < 1700000000) {
     Serial.println("Aguardando sincronização NTP; leitura não publicada.");
     return;
   }
-  const time_t timestamp = epochAtSync + (millis() - millisAtSync) / 1000;
 
   const float temperatura = analogRead(TEMP_PIN) * (150.0f / 4095.0f);
   const float vibracao = analogRead(VIB_PIN) * (10.0f / 4095.0f);
