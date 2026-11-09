@@ -180,7 +180,7 @@ Para montar o circuito Wokwi com três potenciômetros, configurar certificados 
 - `GET /api/v1/maquinas`: Lista todas as máquinas cadastradas e último status.
 - `GET /api/v1/telemetria/{deviceId}/recente`: Últimas medições brutas para plotagem de gráficos ao vivo.
 - `GET /api/v1/indicadores/{deviceId}/oee?periodo=hoje`: Retorna Disponibilidade, Performance, Qualidade e OEE consolidado.
-- `GET /api/v1/alertas`: Lista alertas de anomalias gerados pela Rede Neural.
+- `GET /api/v1/alertas`: Lista alertas operacionais e predições não operacionais persistidas no RDS.
 
 ---
 
@@ -189,8 +189,6 @@ Para montar o circuito Wokwi com três potenciômetros, configurar certificados 
 ```text
 Factory Hub/
 ├── README.md                      # Documento principal do ecossistema
-├── plano_implementacao.md         # Roteiro passo a passo de desenvolvimento
-│
 ├── firmware/                      # Automação Industrial
 │   ├── esp32_wokwi/
 │   │   ├── diagram.json           # Esquema eletrônico no Wokwi
@@ -210,7 +208,7 @@ Factory Hub/
 │   └── terraform.tfvars.example   # Perfis IAM preexistentes e Docker Hub
 │
 ├── ml-service/                    # Ciência de Dados (Python Flask + ML)
-│   ├── factoryhub_ml/             # API Flask, adapter de treino Influx/mock e Random Forest
+│   ├── factoryhub_ml/             # API Flask, treinamento com InfluxDB e Random Forest
 │   ├── requirements.txt           # Flask, Gunicorn e scikit-learn
 │   ├── README.md                  # Contrato de treino, inferência e integração atual
 │   └── Dockerfile                 # Serviço Flask containerizado
@@ -242,5 +240,5 @@ Factory Hub/
 
 ## 7. Como Iniciar a Execução
 
-Consulte o documento detalhado **[plano_implementacao.md](./plano_implementacao.md)** para o passo a passo de cada uma das 6 fases do projeto.
+Consulte a **[central de documentação](./docs/README.md)** para os guias técnicos e curriculares. As instruções específicas de cada serviço estão nos respectivos `README.md`.
 

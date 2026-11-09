@@ -32,3 +32,19 @@ O frontend fica em `http://localhost`; a API pode ser acessada em `http://localh
 | `GET /api/v1/health` | Estado das dependências | Java, Flask, InfluxDB e PostgreSQL consultados; AWS IoT Core aparece `UNKNOWN` / `NOT_MONITORED` |
 
 O React chama apenas `/api/...`. O Nginx encaminha as chamadas para o Java; o navegador não acessa diretamente Flask, InfluxDB ou RDS.
+
+## Validar treino, predição e alerta
+
+Na interface, abra **Ciência de Dados → Laboratório** e use **Treinar modelo**. A página inicia `POST /api/v1/treinamentos` e consulta `GET /api/v1/treinamentos/status` para exibir etapas, mensagens e métricas. O conjunto de treinamento é lido do bucket `telemetry` no InfluxDB; no Compose, ele pode incluir a carga sintética inicial além das medições `LIVE`.
+
+Para validar a inferência pelo mesmo caminho usado pelo navegador:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/predicoes \
+  -H 'Content-Type: application/json' \
+  -d '{"device_id":"esp32-torno-01","temperatura":100,"vibracao":9,"rpm":3000}'
+```
+
+Uma resposta `ATENCAO` ou `RISCO_ANOMALIA` deve aparecer na página e, no perfil cloud (`postgres,influx`), ser persistida como alerta no RDS, visível em `GET /api/v1/alertas`. `OPERACIONAL` não cria alerta. Em execução local com adapter `mock`, a predição pode ser servida pelo mock e não grava no PostgreSQL; para exercitar a persistência, confirme que Java está no perfil cloud e conectado ao RDS.
+
+As métricas de treino confirmam que o pipeline executou, não a qualidade industrial do modelo: o dataset didático usa rótulos gerados por regras de temperatura/vibração e pode misturar telemetria sintética com dados do ESP32. Avalie com medições rotuladas de falhas reais antes de usar para decisões de manutenção.
