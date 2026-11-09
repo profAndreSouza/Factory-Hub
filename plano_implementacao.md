@@ -9,7 +9,7 @@
 2. [Fase 1: Infraestrutura como Código com Terraform](#fase-1-infraestrutura-como-código-com-terraform)
 3. [Fase 2: Firmware ESP32 no Wokwi e Ingestão no AWS IoT Core](#fase-2-firmware-esp32-no-wokwi-e-ingestão-no-aws-iot-core)
 4. [Fase 3: Buffer SQS, Lambda e Backend Integrador Java](#fase-3-buffer-sqs-lambda-e-backend-integrador-java)
-5. [Fase 4: Ciência de Dados & API de Predição com Redes Neurais](#fase-4-ciência-de-dados--api-de-predição-com-redes-neurais)
+5. [Fase 4: Ciência de Dados & API de Predição com Random Forest](#fase-4-ciência-de-dados--api-de-predição-com-random-forest)
 6. [Fase 5: Frontend Dashboard em React](#fase-5-frontend-dashboard-em-react)
 7. [Fase 6: Pipeline de DevOps & CI/CD com GitHub Actions](#fase-6-pipeline-de-devops--cicd-com-github-actions)
 8. [Critérios de Validação e Checklist Final](#critérios-de-validação-e-checklist-final)
@@ -47,7 +47,7 @@ Antes de qualquer `apply`, confirme credenciais validas com `aws sts get-caller-
 **Meta da Fase:** Simular a máquina industrial e publicar leituras periódicas via MQTT seguro.
 
 ### 2.1. Payload Padronizado
-O ESP32 deve publicar a cada 3 a 5 segundos um JSON com campos compatíveis com a análise de Ciência de Dados e cálculo do OEE:
+O ESP32 deve publicar a cada 3 segundos um JSON com campos compatíveis com a análise de Ciência de Dados e cálculo do OEE:
 ```json
 {
   "device_id": "esp32-torno-01",
@@ -61,15 +61,10 @@ O ESP32 deve publicar a cada 3 a 5 segundos um JSON com campos compatíveis com 
 }
 ```
 
-### 2.2. Simulação no Wokwi (`firmware/esp32_wokwi/sketch.ino`)
-- Para conexões em simulador no navegador, a forma mais compatível e robusta com o AWS Academy é:
-  - **Opção A (Direta com AWS IoT Core):** Usar MQTT over WebSockets ou TLS com a biblioteca `PubSubClient` / `WiFiClientSecure`.
-  - **Opção B (Broker Didático / Bridge Node-RED):** Publicar em um broker Mosquitto local/EC2 ou HiveMQ e usar o Node-RED para injetar no AWS IoT Core.
-- **Injeção de Estados:** No código C++, incluir uma lógica para alternar entre:
-  - `OPERATIONAL`: Temperatura 60–75°C, vibração 1.5–3.0 mm/s, RPM ~3500.
-  - `WARNING`: Temperatura 76–89°C, vibração 3.1–5.0 mm/s.
-  - `ANOMALY / CRITICAL`: Temperatura > 90°C, vibração > 6.0 mm/s.
+### 2.2. Simulação no Wokwi
+O circuito e firmware atuais estão em [`docs/07_guia_esp32_wokwi.md`](docs/07_guia_esp32_wokwi.md). O ESP32 publica diretamente no AWS IoT Core usando MQTTS na porta 8883, certificado do dispositivo, chave privada e Amazon Root CA 1. A IoT Rule envia para SQS; a Lambda consome a fila e grava no InfluxDB.
 
+No modelo didático do firmware, cada publicação a cada 3 s com RPM ativo representa um ciclo/peça; `rpm == 0` representa parada; vibração ≥ 7 mm/s classifica o ciclo como refugo. Os contadores são acumulados na execução do ESP32 e reiniciam após reinício do simulador.
 ---
 
 ## Fase 3: Buffer SQS, Lambda e Backend Integrador Java
@@ -83,76 +78,30 @@ O ESP32 deve publicar a cada 3 a 5 segundos um JSON com campos compatíveis com 
    - Tornar o processamento idempotente para evitar duplicidade quando a SQS entregar uma mensagem novamente.
 2. **Persistência temporal:** A Lambda valida o payload e grava cada medição bruta com timestamp no InfluxDB, para consultas históricas e treinamento de modelos.
 
-### 3.2. Arquitetura do Backend Java (Spring Boot 3)
-1. **Leitura e consolidação:**
-   - Consultar as séries temporais no InfluxDB; o Java não consome a fila SQS.
-   - Salvar no RDS PostgreSQL as tabelas `maquina`, `turno`, `apontamento_producao` e os indicadores consolidados `indicadores_oee`.
-2. **Cálculo de Indicadores OEE (Motor de Regras):**
-   - **Disponibilidade ($A$):** $\frac{\text{Tempo em OPERATIONAL}}{\text{Tempo Total Programado}}$
-   - **Performance ($P$):** $\frac{\text{Peças Produzidas}}{\text{Meta Teórica do Período}}$
-   - **Qualidade ($Q$):** $\frac{\text{Peças Boas}}{\text{Peças Totais}}$
-   - $\text{OEE} = A \times P \times Q \times 100\%$
-3. **Comunicação com a API de IA:**
-   - Cliente HTTP (`WebClient` ou `RestClient`) invocando `POST http://ai-flask:5000/predict` para validar se os sensores indicam falha iminente.
-
+### 3.2. Backend Java (Spring Boot 3)
+- Java lê telemetria recente no InfluxDB; ele não consome a fila SQS.
+- RDS PostgreSQL usa as tabelas `machines`, `oee_snapshots` e `alerts`, criadas pelo Flyway.
+- O OEE cloud retorna `LIVE_PARTIAL` com dados `LIVE` quando há contadores e leituras suficientes; intervalos acima de 9 s são ignorados. O ciclo ideal didático é 3 s/peça. Sem dados suficientes, o backend usa o snapshot `DEMO` do RDS.
+- O backend Java chama o Flask privado para predição e treinamento. Predições não operacionais são persistidas como alertas no RDS.
 ---
 
-## Fase 4: Ciência de Dados & API de Predição com Redes Neurais
+## Fase 4: Ciência de Dados & API de Predição com Random Forest
 
-**Meta da Fase:** Treinar um modelo de Rede Neural com base nos dados históricos e disponibilizar inferência online.
+**Implementação atual:** o serviço Flask treina uma Random Forest com dados lidos do InfluxDB. O bucket pode conter histórico sintético de demonstração e telemetria `LIVE` recebida do ESP32. A alternativa MLP descrita em `docs/02_ciencia_de_dados.md` é conteúdo teórico, não o modelo executado.
 
-> **Entrega disponível no protótipo:** o serviço `ml-service` oferece `/predict`, `/health` e `/model/info`. No Docker Compose, o serviço `influx-seed` grava telemetria sintética no InfluxDB; o adapter `InfluxTrainingDataSource` consulta esse histórico e o modelo treinado fica no volume `ml-models`. O backend Java consulta as leituras no InfluxDB e encaminha as predições ao Flask. A MLP descrita abaixo permanece como uma alternativa futura de modelagem.
+### 4.1. Treinamento e avaliação
+- `POST /train` inicia retreinamento em segundo plano com o histórico disponível no InfluxDB.
+- `GET /training/status` retorna etapa, mensagens, progresso, quantidade de registros e métricas.
+- O modelo atual continua atendendo inferências durante o treinamento e é substituído ao concluir.
+- O botão **Treinar modelo** na página Ciência de Dados chama somente o backend Java; Java encaminha ao Flask.
+- As métricas medem a classificação dos rótulos didáticos derivados das faixas de sensores; não equivalem a validação em falhas industriais reais.
 
-### 4.1. Metodologia CRISP-DM Aplicada
-1. **Entendimento do Negócio:** Detectar anomalias térmicas e vibrações anormais antes que ocorra quebra de rolamentos.
-2. **Preparação dos Dados:** Normalização com `StandardScaler` e criação de janelas temporais de $N$ leituras consecutivas.
-3. **Modelagem:**
-   - Arquitetura: **MLP (Multilayer Perceptron)** com 3 camadas ocultas (`Dense(64) -> Dropout(0.2) -> Dense(32) -> Dense(1, activation='sigmoid')`).
-   - Treinamento utilizando PyTorch ou TensorFlow/Keras.
-4. **Avaliação:** Matriz de Confusão, F1-Score, Recall (prioridade para não deixar falhas passarem despercebidas) e ROC-AUC.
+### 4.2. Contrato e proxy de inferência
+O endpoint Flask `POST /predict` recebe `device_id`, `temperatura`, `vibracao` e `rpm`. No navegador, a chamada é `POST /api/v1/predicoes` ao Java. O backend encaminha a inferência ao Flask privado e persiste no RDS as predições não operacionais como alertas.
 
-### 4.2. API Python Flask (`ml-service/app.py`)
-```python
-from flask import Flask, request, jsonify
-import joblib
-import numpy as np
-
-app = Flask(__name__)
-
-# Carregar modelo e scaler treinados
-model = joblib.load("model/neural_network_oee.joblib")
-scaler = joblib.load("model/scaler.joblib")
-
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "UP", "service": "factoryhub-ml-service"}), 200
-
-@app.route("/predict", methods=["POST"])
-def predict():
-    data = request.get_json()
-    temp = float(data.get("temperatura", 0))
-    vib = float(data.get("vibracao", 0))
-    rpm = float(data.get("rpm", 0))
-
-    features = scaler.transform([[temp, vib, rpm]])
-    prob = float(model.predict_proba(features)[0][1])
-
-    is_anomaly = prob >= 0.70
-    status = "RISCO_ANOMALIA" if is_anomaly else "NORMAL"
-
-    return jsonify({
-        "device_id": data.get("device_id"),
-        "status_previsto": status,
-        "probabilidade_falha": round(prob, 4),
-        "recomendacao": "Inspecionar lubrificação e fixação" if is_anomaly else "Operação regular"
-    }), 200
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
-```
+Rotas auxiliares do Flask: `GET /health`, `GET /model/info` e `GET /training/status`. Consulte `ml-service/README.md` e `docs/05_contratos_e_especificacoes.md` para os contratos atuais.
 
 ---
-
 ## Fase 5: Frontend Dashboard em React
 
 **Meta da Fase:** Interface visual intuitiva para monitoramento de chão de fábrica.
@@ -168,67 +117,22 @@ if __name__ == "__main__":
 
 ## Fase 6: Pipeline de DevOps & CI/CD com GitHub Actions
 
-**Meta da Fase:** Entrega automatizada do código até a instância EC2 na AWS.
+**Implementação atual:** `docker-compose.cloud.yml` é a composição executada na EC2: InfluxDB, carga sintética inicial, Flask, Java e frontend React. Java usa RDS PostgreSQL privado; a Lambda consome SQS e grava telemetria no InfluxDB.
 
-### 6.1. Orquestração com Docker Compose (`docker-compose.yml` na EC2)
-```yaml
-version: '3.8'
+### 6.1. Workflows manuais
+- `.github/workflows/terraform.yml`: provisiona/atualiza infraestrutura usando state remoto S3.
+- `.github/workflows/publish-dockerhub.yml`: publica manualmente as imagens Flask, Java e React com tags `latest` e `sha-<commit>`.
+- `.github/workflows/deploy-ssm.yml`: executa manualmente o deploy na EC2 via SSM Run Command; não depende de SSH/porta 22.
 
-services:
-  timescaledb:
-    image: timescale/timescaledb:latest-pg14
-    container_name: factoryhub-tsdb
-    restart: always
-    environment:
-      POSTGRES_DB: telemetria_db
-      POSTGRES_USER: factory_user
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "5433:5432"
-    volumes:
-      - tsdb_data:/var/lib/postgresql/data
+Fluxo recomendado após alterações: aplicar Terraform se houver mudanças de infraestrutura/Lambda; publicar imagens no Docker Hub; executar deploy SSM para atualizar os containers. Configure as credenciais AWS temporárias e credenciais Docker Hub nos GitHub Secrets, e região/bucket nas Variables.
 
-  ai-service:
-    image: ${DOCKER_USER}/factoryhub-ai-service:latest
-    container_name: factoryhub-ai
-    restart: always
-    ports:
-      - "5000:5000"
+### 6.2. Verificação funcional
+- A página inicial recebe status do backend; dependências não monitoradas devem aparecer como `UNKNOWN` / `NOT_MONITORED`.
+- Treinamento e predição passam pelo backend Java; o navegador não acessa Flask diretamente.
+- Predições `ATENCAO`/`RISCO_ANOMALIA` no perfil cloud são gravadas em `alerts` no RDS.
+- O OEE calculado com telemetria real é `LIVE_PARTIAL`, limitado aos intervalos observados; snapshot `DEMO` é fallback.
 
-  backend-java:
-    image: ${DOCKER_USER}/factoryhub-backend:latest
-    container_name: factoryhub-backend
-    restart: always
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://${RDS_HOST}:5432/factoryhub
-      SPRING_DATASOURCE_USERNAME: ${RDS_USER}
-      SPRING_DATASOURCE_PASSWORD: ${RDS_PASSWORD}
-      AWS_REGION: us-east-1
-      SQS_QUEUE_NAME: factoryhub-telemetria-queue
-      AI_SERVICE_URL: http://ai-service:5000
-    ports:
-      - "8080:8080"
-    depends_on:
-      - ai-service
-      - timescaledb
-
-  frontend:
-    image: ${DOCKER_USER}/factoryhub-frontend:latest
-    container_name: factoryhub-frontend
-    restart: always
-    ports:
-      - "80:80"
-    depends_on:
-      - backend-java
-
-volumes:
-  tsdb_data:
-```
-
-### 6.2. Workflow do GitHub Actions (`.github/workflows/deploy-ssm.yml`)
-
-O workflow executavel e a fonte de verdade. Ele so publica imagens quando a mensagem do commit enviado a `main` inclui `- dockerhub publish`; publica as tags `latest` e `sha-<commit>`. Com `SSM_DEPLOY_ENABLED=true`, o mesmo commit publicado e implantado via SSM. O acionamento manual reaplica a imagem `latest` existente, sem publicar uma nova. Configure `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN` como secrets. Nenhuma chave SSH ou porta 22 e necessaria.
-
+---
 ## Critérios de Validação e Checklist Final
 
 - [ ] **Infraestrutura:** `terraform apply` executado com sucesso no AWS Academy usando roles/perfis preexistentes compativeis, com SSM Online.
@@ -236,8 +140,8 @@ O workflow executavel e a fonte de verdade. Ele so publica imagens quando a mens
 - [ ] **Roteamento IoT:** IoT Topic Rule entregando mensagens na fila SQS sem rejeição.
 - [ ] **Consumo SQS:** Event source mapping acionando a Lambda; mensagens processadas e removidas da fila após persistência no InfluxDB, com falhas encaminhadas à DLQ.
 - [ ] **Banco Temporal:** Leituras armazenadas com timestamp correto para consultas históricas.
-- [ ] **Inteligência Artificial:** Endpoint `/predict` da API Flask respondendo com probabilidade de anomalia válida.
-- [ ] **Consolidação de KPIs:** Métricas de Disponibilidade, Performance, Qualidade e OEE calculadas e gravadas no PostgreSQL.
+- [ ] **Inteligência Artificial:** Endpoint Predição no frontend passando pelo Java/Flask; alerta não operacional persistido no RDS em perfil cloud.
+- [ ] **Consolidação de KPIs:** OEE `LIVE_PARTIAL` calculado do InfluxDB com dados suficientes; snapshot `DEMO` identificado como fallback. Consolidação de turno integral depende de calendário e eventos operacionais.
 - [ ] **Visualização:** Frontend React exibindo telemetria e KPIs atualizados.
-- [ ] **CI/CD:** Commit na branch `main` executa testes, gera imagens no Docker Hub e atualiza a EC2 por SSM Run Command.
+- [ ] **CI/CD:** Workflows manuais de Terraform, publicação Docker Hub e deploy por SSM executados com sucesso.
 

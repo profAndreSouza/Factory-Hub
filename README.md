@@ -2,13 +2,13 @@
 
 > **Projeto Integrador Multidisciplinar** conectando as disciplinas de **Automação Industrial**, **Ciência de Dados**, **Computação em Nuvem** e **Integração e Entrega Contínua (DevOps)**, dimensionado para o ambiente **AWS Academy Learner Lab**.
 
-> **Estado atual da integração:** frontend → API Java → PostgreSQL/RDS e InfluxDB; Java usa PostgreSQL para catálogo de máquinas e alertas, consulta telemetria no InfluxDB e calcula OEE parcial quando há contadores reais suficientes. Flask treina a Random Forest com o histórico do InfluxDB. O fluxo Wokwi → IoT Core → SQS → Lambda → InfluxDB → API foi validado. Os snapshots OEE do RDS permanecem como fallback didático. O status do IoT Core ainda não é monitorado pela API.
+> **Estado atual da integração:** frontend → API Java → PostgreSQL/RDS e InfluxDB; Java usa PostgreSQL para catálogo e alertas, consulta telemetria no InfluxDB e calcula OEE parcial quando há contadores suficientes. Flask treina a Random Forest com o histórico do InfluxDB, que pode conter dados didáticos e telemetria do ESP32. O fluxo Wokwi → IoT Core → SQS → Lambda → InfluxDB → API foi validado. Snapshots OEE do RDS são fallback didático. O estado do IoT Core ainda não é monitorado pela API.
 
 ---
 
 ## 1. Visão Geral do Projeto
 
-O **Factory Hub** é uma plataforma distribuída de manufatura inteligente inspirada no conceito de **Fábrica Virtual / Célula Fabril Smart N1**. A arquitetura conecta sinais da borda simulada, dados operacionais, predição de condição de máquinas e visualização gerencial do **OEE (Overall Equipment Effectiveness)**. No protótipo atual, a API Flask treina uma Random Forest com dados sintéticos para exercitar esse fluxo.
+O **Factory Hub** é uma plataforma distribuída de manufatura inteligente inspirada no conceito de **Fábrica Virtual / Célula Fabril Smart N1**. A arquitetura conecta sinais da borda simulada, dados operacionais, predição de condição de máquinas e visualização gerencial do **OEE (Overall Equipment Effectiveness)**. A API Flask treina uma Random Forest com o histórico do InfluxDB, que pode conter telemetria sintética de demonstração e dados recebidos do ESP32.
 
 ### Alinhamento com as Unidades Curriculares
 
@@ -117,7 +117,7 @@ flowchart TB
 | **Ingestão IoT** | AWS IoT Core + Topic Rules | Nuvem / Automação | Broker gerenciado seguro para recebimento de telemetria e redirecionamento declarativo de pacotes via regra de tópico para a fila SQS. |
 | **Buffer de Ingestão** | Amazon SQS (com DLQ) | Computação em Nuvem | Absorver picos de tráfego de múltiplos dispositivos e desacoplar a ingestão do processamento pela função Lambda. |
 | **Consumidor da fila** | AWS Lambda | Nuvem / Automação | Consumir mensagens da SQS por event source mapping, validar telemetria e gravar medições brutas no InfluxDB. |
-| **Banco Temporal** | TimescaleDB / InfluxDB (Container) | Nuvem / Dados | Armazenamento de alta performance para séries temporais brutas, ideal para consultas de janelas deslizantes da rede neural. |
+| **Banco Temporal** | InfluxDB (container na EC2) | Nuvem / Dados | Armazena telemetria bruta para consultas recentes e treinamento do modelo. |
 | **Banco Relacional** | Amazon RDS PostgreSQL (`db.t3.micro`) | Computação em Nuvem | Armazenamento persistente de cadastros (máquinas, linhas de produção, operadores), apontamento de turnos e logs consolidados de OEE. |
 | **API de Predição** | Python 3.12 + Flask + scikit-learn | Ciência de Dados | Consultar séries históricas no InfluxDB para treinar e servir uma Random Forest; aceitar dados sintéticos quando executado sem a integração local. |
 | **Backend de Negócio** | Java 17/21 + Spring Boot 3 | Computação em Nuvem | Ler séries brutas do InfluxDB, consolidar dados e calcular Disponibilidade, Performance e Qualidade (OEE) no RDS, e intermediar previsões da IA. |
@@ -210,9 +210,9 @@ Factory Hub/
 │   └── terraform.tfvars.example   # Perfis IAM preexistentes e Docker Hub
 │
 ├── ml-service/                    # Ciência de Dados (Python Flask + ML)
-│   ├── factoryhub_ml/             # API, fonte de treino mockada e pipeline Random Forest
+│   ├── factoryhub_ml/             # API Flask, adapter de treino Influx/mock e Random Forest
 │   ├── requirements.txt           # Flask, Gunicorn e scikit-learn
-│   ├── README.md                  # Contrato, fonte mockada e integração planejada
+│   ├── README.md                  # Contrato de treino, inferência e integração atual
 │   └── Dockerfile                 # Serviço Flask containerizado
 │
 ├── backend-java/                  # Backend de Negócio & API Java

@@ -37,7 +37,7 @@ Não presuma que `LabRole` atende todos esses serviços: a conta precisa permiti
 |---|---|---|---|
 | **Rede** | Provisionar **NAT Gateway** gerenciado | EC2 em Subnet Pública com Security Group fechado | Economia de **\$32,40/mês** |
 | **Balanceador** | Application Load Balancer (ALB) | Porta 80 aberta diretamente na EC2 com Nginx | Economia de **\$18,00/mês** |
-| **Banco Temporal** | AWS Timestream (queries pagas) | Container TimescaleDB / InfluxDB na EC2 | Economia de **\$10,00/mês** |
+| **Banco Temporal** | AWS Timestream (queries pagas) | Container InfluxDB na EC2 | Economia de **\$10,00/mês** |
 | **Computação** | Várias instâncias separadas | Única instância `t3.small` com Docker Compose | Economia de **\$15,00/mês** |
 
 ---

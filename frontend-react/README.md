@@ -9,8 +9,8 @@ O navegador consome somente a API Java (`VITE_API_BASE_URL`, padrão local `http
 Rotas de negócio usadas pelo frontend: `/api/v1/maquinas`, `/api/v1/telemetria/{deviceId}/recente`, `/api/v1/indicadores/{deviceId}/oee`, `/api/v1/alertas`, `/api/v1/health` e `POST /api/v1/predicoes`. Consulte [os contratos da API](../docs/05_contratos_e_especificacoes.md) para os formatos esperados.
 
 Ele foi projetado como um **Portal Educacional Interativo e Apostila Viva**, integrando as 4 disciplinas:
-1. **Automação Industrial:** Teoria de sinais OT/IT, protocolo MQTT, ciclo de vida de alertas com histerese e simulador ESP32 Wokwi mock.
-2. **Ciência de Dados:** Metodologia CRISP-DM, séries temporais, calculadora interativa de OEE e playground de manutenção preditiva. As predições passam pelo backend Java e pelo modelo Flask treinado com telemetria sintética.
+1. **Automação Industrial:** Teoria de sinais OT/IT, protocolo MQTT, ciclo de vida de alertas e telemetria do ESP32 no Wokwi encaminhada pelo AWS IoT Core.
+2. **Ciência de Dados:** Metodologia CRISP-DM, séries temporais, calculadora interativa de OEE e playground de manutenção preditiva. As predições passam pelo backend Java e pelo modelo Flask treinado com o histórico do InfluxDB, que pode combinar dados de demonstração e telemetria recebida.
 3. **Computação em Nuvem:** Topologia AWS Academy (VPC, LabRole, SQS, EC2, RDS) e simulador do buffer SQS sob rajada.
 4. **DevOps:** GitFlow, construtor guiado de Conventional Commits com cálculo de SemVer e visualizador da esteira GitHub Actions.
 5. **Célula Fabril Smart N1:** Dashboard operacional com telemetria contínua e status de linha em tempo real.

@@ -8,7 +8,7 @@ O Flyway cria `machines`, `oee_snapshots` e `alerts` na primeira inicialização
 
 No Compose local, o serviço PostgreSQL usa volume persistente. No ambiente cloud, o Compose conecta ao RDS privado. A senha do RDS é armazenada como SecureString no Systems Manager Parameter Store e o workflow SSM a busca pela role da EC2 antes de iniciar o Compose. Portanto, a role EC2 precisa de leitura dos parâmetros do Factory Hub e de descriptografia da chave padrão do Parameter Store.
 
-O cálculo consolidado de OEE a partir do histórico real do InfluxDB ainda é uma próxima etapa. Os valores iniciais da tabela estão marcados `DEMO` no banco.
+O endpoint de OEE calcula um valor parcial a partir das amostras `LIVE` do InfluxDB quando há contadores de produção/refugo e ao menos duas leituras próximas. A janela considera somente intervalos observados de até 9 segundos. Quando faltam dados, o backend devolve os valores didáticos de `oee_snapshots`, marcados `DEMO`.
 
 ## Executar localmente
 
@@ -23,12 +23,12 @@ O frontend fica em `http://localhost`; a API pode ser acessada em `http://localh
 | Rota | Responsabilidade | Fonte atual |
 |---|---|---|
 | `GET /api/v1/maquinas` | Cadastro e última leitura | Catálogo no PostgreSQL + última leitura no InfluxDB |
-| `GET /api/v1/indicadores/{deviceId}/oee?periodo=hoje` | Indicadores OEE e contadores do período | PostgreSQL; snapshots iniciais marcados como demo |
+| `GET /api/v1/indicadores/{deviceId}/oee?periodo=hoje` | Indicadores OEE e contadores do período | InfluxDB `LIVE_PARTIAL`; fallback do PostgreSQL marcado `DEMO` |
 | `GET /api/v1/alertas` | Alertas de condição/anomalia | PostgreSQL; inclui predições de risco persistidas |
 | `GET /api/v1/telemetria/{deviceId}/recente` | Série recente de sensores | InfluxDB |
 | `POST /api/v1/predicoes` | Predição de condição de máquina | Serviço Flask; alertas não operacionais são persistidos no PostgreSQL |
 | `POST /api/v1/treinamentos` | Solicita retreinamento do modelo | Flask com histórico do InfluxDB |
 | `GET /api/v1/treinamentos/status` | Etapa, mensagens e métricas do treino | Flask |
-| `GET /api/v1/health` | Estado das dependências | Java, Flask, InfluxDB e PostgreSQL; MQTT ainda aparece como `MOCK` |
+| `GET /api/v1/health` | Estado das dependências | Java, Flask, InfluxDB e PostgreSQL consultados; AWS IoT Core aparece `UNKNOWN` / `NOT_MONITORED` |
 
 O React chama apenas `/api/...`. O Nginx encaminha as chamadas para o Java; o navegador não acessa diretamente Flask, InfluxDB ou RDS.

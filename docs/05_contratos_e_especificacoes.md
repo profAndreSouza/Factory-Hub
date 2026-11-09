@@ -77,9 +77,9 @@ Para criar o circuito com potenciômetros e publicar com TLS/QoS 1 no Wokwi, sig
   "status_previsto": "RISCO_ANOMALIA",
   "probabilidade_falha": 0.8421,
   "recomendacao": "Vibração elevada no eixo secundário. Agendar inspeção preventiva.",
-  "modelo_versao": "random-forest-mock-v1.0.0",
+  "modelo_versao": "random-forest-v1.0.0",
   "timestamp_analise": "2026-11-08T10:15:05Z",
-  "source": "MOCK_TRAINING_DATA"
+  "source": "INFLUXDB"
 }
 ```
 

@@ -35,7 +35,7 @@ flowchart TD
     ROOT --> MOD5["🏭 6. Célula Fabril Smart N1 (Dashboard Integrado)"]
 
     MOD1 --> MOD1_A["• Pirâmide ISA-95 Interativa"]
-    MOD1 --> MOD1_B["• Simulador de Sensores (Wokwi Mock)"]
+    MOD1 --> MOD1_B["• ESP32 no Wokwi → AWS IoT Core → telemetria"]
     MOD1 --> MOD1_C["• Monitor MQTT & Node-RED Flow"]
 
     MOD2 --> MOD2_A["• Ciclo CRISP-DM Interativo"]
@@ -87,7 +87,7 @@ flowchart TD
     $$\text{Qualidade} = \frac{\text{Peças Boas}}{\text{Total Produzido}}$$
     $$\text{OEE} = \text{Disponibilidade} \times \text{Performance} \times \text{Qualidade}$$
 - **Laboratório Interativo:**
-  - **Playground da Rede Neural:** 3 sliders de entrada (*Temperatura [°C]*, *Vibração [mm/s]* e *RPM*). Ao mover os sliders, a aplicação chama o endpoint `POST /predict` da API Python e exibe o medidor de risco de anomalia, status previsto e recomendação técnica.
+  - **Playground da Rede Neural:** 3 sliders de entrada (*Temperatura [°C]*, *Vibração [mm/s]* e *RPM*). Ao analisar, o frontend chama `POST /api/v1/predicoes` no backend Java, que encaminha a solicitação ao Flask privado e devolve o risco, o status previsto e a recomendação técnica.
   - **Visualizador de Séries Temporais:** Decomposição visual dos dados do sensor em Tendência, Sazonalidade e Ruído Residual.
   - **Calculadora Interativa de OEE:** Sliders de horas paradas, velocidade da linha e refugo para ver o impacto direto no indicador global de OEE.
 
