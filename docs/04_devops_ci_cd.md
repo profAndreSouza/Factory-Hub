@@ -1,4 +1,4 @@
-# 🚀 Referência Técnica: Integração e Entrega Contínua (DevOps)
+# Referência Técnica: Integração e Entrega Contínua (DevOps)
 
 > **Unidade Curricular:** Integração e Entrega Contínua — DevOps (40 horas / 20 Semanas)  
 > **Objetivo:** Estabelecer uma esteira automatizada de build, testes, empacotamento em contêineres versionados e entrega contínua na AWS.

@@ -1,4 +1,4 @@
-# 🛡️ Guia de Operação no AWS Academy Learner Lab
+# Guia de Operação no AWS Academy Learner Lab
 
 > **Manual de Sobrevivência:** Como provisionar e executar a infraestrutura do Factory Hub sem esgotar o orçamento de \$100 nem ser bloqueado pelas restrições de permissão do sandbox.
 

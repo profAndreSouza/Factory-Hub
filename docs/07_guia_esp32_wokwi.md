@@ -2,6 +2,8 @@
 
 Este exercício monta um ESP32 com três potenciômetros para simular temperatura, vibração e RPM. O firmware publica uma leitura a cada três segundos em AWS IoT Core usando MQTT sobre TLS e QoS 1. Para o OEE didático, cada publicação com RPM acima de zero representa um ciclo/peça; vibração a partir de 7 marca a peça como refugo.
 
+[Abrir o projeto Factory Hub no Wokwi](https://wokwi.com/projects/480156977156775937).
+
 Os potenciômetros são controles didáticos: não representam sensores industriais reais. O caminho da mensagem no Factory Hub é:
 
 ```text

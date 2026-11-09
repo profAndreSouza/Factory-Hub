@@ -1,4 +1,4 @@
-# ☁️ Referência Técnica: Computação em Nuvem (AWS Academy)
+# Referência Técnica: Computação em Nuvem (AWS Academy)
 
 > **Unidade Curricular:** Computação em Nuvem (60 horas / 20 Semanas)  
 > **Objetivo:** Provisionar e gerenciar a infraestrutura em nuvem na Amazon Web Services (AWS) utilizando Terraform sob as diretrizes do **AWS Academy Learner Lab**.

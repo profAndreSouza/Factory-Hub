@@ -1,4 +1,4 @@
-# 📋 Especificação de Contratos de Dados e Interfaces
+# Especificação de Contratos de Dados e Interfaces
 
 > **Documento Normativo:** Define formalmente os contratos de dados, formatos de payload, rotas REST e esquemas de banco para garantir a perfeita integração entre os microserviços do Factory Hub.
 

@@ -1,4 +1,4 @@
-# 📊 Referência Técnica: Ciência de Dados & Redes Neurais
+# Referência Técnica: Ciência de Dados & Modelos Preditivos
 
 > **Unidade Curricular:** Ciência de Dados (80 horas / 20 Semanas)  
 > **Objetivo:** Transformar medições de telemetria industrial em diagnósticos preditivos através do ciclo CRISP-DM, redes neurais e indicadores OEE.

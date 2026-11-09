@@ -1,4 +1,4 @@
-# ⚡ Referência Técnica: Automação Industrial & IIoT
+# Referência Técnica: Automação Industrial & IIoT
 
 > **Unidade Curricular:** Automação Industrial (80 horas / 20 Semanas)  
 > **Objetivo:** Projetar a coleta, tratamento preliminar e transmissão segura de sinais industriais do chão de fábrica (OT) para sistemas em nuvem (IT).
@@ -78,5 +78,5 @@ A histerese é um possível exercício de extensão: exigir várias amostras aci
 
 ## 5. Montagem do ESP32 no Wokwi
 
-O guia completo de circuito com três potenciômetros, certificados TLS, firmware Arduino e validação da cadeia de ingestão está em [Guia ESP32 e AWS IoT Core no Wokwi](07_guia_esp32_wokwi.md). O tópico é `industria/smartn1/telemetria`; os campos obrigatórios são `device_id`, `temperatura`, `vibracao` e `rpm`.
+O circuito e firmware desta aula estão no [projeto Factory Hub no Wokwi](https://wokwi.com/projects/480156977156775937). O passo a passo de montagem, certificados TLS e validação da cadeia de ingestão está em [Guia ESP32 e AWS IoT Core no Wokwi](07_guia_esp32_wokwi.md). O tópico é `industria/smartn1/telemetria`; os campos obrigatórios são `device_id`, `temperatura`, `vibracao` e `rpm`.
 
