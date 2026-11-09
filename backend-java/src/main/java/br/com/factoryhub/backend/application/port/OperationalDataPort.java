@@ -8,7 +8,7 @@ import br.com.factoryhub.backend.api.dto.PredictionResponse;
 import java.util.List;
 import java.util.Optional;
 
-/** Data access boundary for machine catalog, OEE and alerts (planned RDS source). */
+/** Data access boundary for the machine catalog, OEE indicators and alerts. */
 public interface OperationalDataPort {
     List<MachineResponse> findMachines();
 

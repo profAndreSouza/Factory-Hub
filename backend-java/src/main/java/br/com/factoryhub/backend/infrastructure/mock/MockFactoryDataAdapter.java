@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/** Deterministic in-memory data used until the RDS and InfluxDB adapters are enabled. */
+/** Deterministic in-memory data for explicit offline/mock runs. */
 @Component
 @Profile("mock")
 public class MockFactoryDataAdapter implements OperationalDataPort {
@@ -52,9 +52,9 @@ public class MockFactoryDataAdapter implements OperationalDataPort {
         if (!machines.containsKey(deviceId)) return Optional.empty();
         String referenceDate = "hoje".equalsIgnoreCase(period) ? LocalDate.now().toString() : period;
         return Optional.of(switch (deviceId) {
-            case TORNO_01 -> new OeeResponse(deviceId, referenceDate, 92.5, 96.0, 98.2, 87.2, 444, 36, 480, 471, 9);
-            case TORNO_02 -> new OeeResponse(deviceId, referenceDate, 86.0, 89.0, 94.4, 72.3, 413, 67, 392, 374, 18);
-            default -> new OeeResponse(deviceId, referenceDate, 95.0, 93.0, 99.0, 87.4, 456, 24, 305, 279, 26);
+            case TORNO_01 -> new OeeResponse(deviceId, referenceDate, 92.5, 96.0, 98.2, 87.2, 444, 36, 480, 471, 9, "MOCK", 28800);
+            case TORNO_02 -> new OeeResponse(deviceId, referenceDate, 86.0, 89.0, 94.4, 72.3, 413, 67, 392, 374, 18, "MOCK", 28800);
+            default -> new OeeResponse(deviceId, referenceDate, 95.0, 93.0, 99.0, 87.4, 456, 24, 305, 279, 26, "MOCK", 28800);
         });
     }
 

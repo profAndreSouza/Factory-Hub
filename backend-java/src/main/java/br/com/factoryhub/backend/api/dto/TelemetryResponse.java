@@ -9,5 +9,7 @@ public record TelemetryResponse(
         int rpm,
         String status,
         Integer pecas_produzidas,
-        Integer pecas_defeito) {
+        Integer pecas_defeito,
+        String machine_state,
+        String data_origin) {
 }

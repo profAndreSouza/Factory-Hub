@@ -6,7 +6,7 @@ Microserviço de inferência usado exclusivamente pelo backend Java. O serviço 
 
 O contrato `TrainingDataSource` em `factoryhub_ml/data_source.py` separa a consulta dos dados do treinamento. No Docker Compose, `InfluxTrainingDataSource` consulta o bucket `telemetry` do InfluxDB. O serviço `influx-seed` grava 14 dias de telemetria sintética para três máquinas antes de iniciar Flask e Java; **são dados didáticos, não medições de máquinas reais**. Fora do Compose, `MockTrainingDataSource` continua disponível como fallback.
 
-Os rótulos (`OPERATIONAL`, `WARNING`, `CRITICAL`) são derivados dos limites de temperatura e vibração das medições consultadas. O restante do pipeline de treino mantém o mesmo formato para qualquer fonte.
+Os rótulos (`OPERATIONAL`, `WARNING`, `CRITICAL`) são derivados dos limites de temperatura e vibração das medições consultadas. O restante do pipeline de treino mantém o mesmo formato para qualquer fonte. Os pontos semeados são marcados `data_origin=DEMO`; a Lambda marca as novas mensagens do dispositivo como `data_origin=LIVE`, permitindo ao backend calcular OEE sem misturar histórico sintético com telemetria validada.
 
 O modelo divide os dados em treino e teste, calcula acurácia e F1 macro e guarda modelo, métricas, origem e data do treino em `ML_MODEL_PATH`. Um artefato só é reutilizado quando a fonte registrada coincide com a fonte configurada. No Compose, a URL interna é `http://influxdb:8086`; a interface do InfluxDB fica disponível em `http://localhost:8086`.
 

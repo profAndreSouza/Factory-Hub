@@ -46,17 +46,19 @@ def _line_protocol(payload: dict[str, Any]) -> str:
         else "WARNING" if temperature >= 80 or vibration >= 4.5
         else "OPERATIONAL"
     ))
+    machine_state = str(payload.get("machine_state") or ("RUNNING" if rpm > 0 else "STOPPED"))
     fields = [
         f'temperatura={temperature}',
         f'vibracao={vibration}',
         f'rpm={rpm}i',
         f'status="{_escape_string(status)}"',
+        f'machine_state="{_escape_string(machine_state)}"',
     ]
     if payload.get("pecas_produzidas") is not None:
         fields.append(f'pecas_produzidas={int(payload["pecas_produzidas"])}i')
     if payload.get("pecas_defeito") is not None:
         fields.append(f'pecas_defeito={int(payload["pecas_defeito"])}i')
-    return f'machine_telemetry,device_id={device_id},machine_type={machine_type} {",".join(fields)} {_timestamp_ns(payload.get("timestamp"))}'
+    return f'machine_telemetry,device_id={device_id},machine_type={machine_type},data_origin=LIVE {",".join(fields)} {_timestamp_ns(payload.get("timestamp"))}'
 
 
 def _write_line(line: str) -> None:

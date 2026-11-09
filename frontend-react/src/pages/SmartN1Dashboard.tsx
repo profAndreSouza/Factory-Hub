@@ -83,6 +83,10 @@ export const SmartN1Dashboard: React.FC = () => {
 
   const totalPecas = oee?.total_pecas;
   const totalDefeitos = oee?.pecas_refugo;
+  const oeeObservedSeconds = oee?.tempo_observado_segundos ?? 0;
+  const oeeObservedLabel = oeeObservedSeconds < 60
+    ? `${oeeObservedSeconds} s`
+    : `${Math.round(oeeObservedSeconds / 60)} min`;
   const taxaRefugo = totalPecas && totalDefeitos !== undefined
     ? parseFloat(((totalDefeitos / totalPecas) * 100).toFixed(2))
     : undefined;
@@ -143,6 +147,11 @@ export const SmartN1Dashboard: React.FC = () => {
         {oee && (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm flex flex-col items-center gap-3">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 self-start">OEE por Componente</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 self-start">
+              {oee.origem === 'LIVE_PARTIAL'
+                ? `Calculado com telemetria real em ${oeeObservedLabel} observados.`
+                : 'Indicador demonstrativo; aguardando telemetria real com contadores.'}
+            </p>
             <OeeGaugeChart oee={oee.oee} size={160} />
             <div className="w-full space-y-2 text-xs">
               {[

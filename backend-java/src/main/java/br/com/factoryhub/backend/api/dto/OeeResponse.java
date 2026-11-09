@@ -11,5 +11,7 @@ public record OeeResponse(
         int tempo_parado_minutos,
         int total_pecas,
         int pecas_boas,
-        int pecas_refugo) {
+        int pecas_refugo,
+        String origem,
+        int tempo_observado_segundos) {
 }

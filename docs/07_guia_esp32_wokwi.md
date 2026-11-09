@@ -1,6 +1,6 @@
 # Guia prático: ESP32 e AWS IoT Core no Wokwi
 
-Este exercício monta um ESP32 com três potenciômetros para simular temperatura, vibração e RPM. O firmware publica uma leitura a cada três segundos em AWS IoT Core usando MQTT sobre TLS e QoS 1.
+Este exercício monta um ESP32 com três potenciômetros para simular temperatura, vibração e RPM. O firmware publica uma leitura a cada três segundos em AWS IoT Core usando MQTT sobre TLS e QoS 1. Para o OEE didático, cada publicação com RPM acima de zero representa um ciclo/peça; vibração a partir de 7 marca a peça como refugo.
 
 Os potenciômetros são controles didáticos: não representam sensores industriais reais. O caminho da mensagem no Factory Hub é:
 
@@ -89,7 +89,7 @@ GPIO 34, 35 e 32 são canais ADC1 do ESP32 clássico e podem ser usados junto co
 | Potenciômetro | Pino | Faixa simulada |
 |---|---:|---:|
 | Temperatura | GPIO 34 | 0 a 150 °C |
-| Vibração | GPIO 35 | 0 a 50 mm/s |
+| Vibração | GPIO 35 | 0 a 10 mm/s |
 | RPM | GPIO 32 | 0 a 10.000 RPM |
 
 ## 4. Adicionar a biblioteca MQTT
@@ -162,6 +162,8 @@ MQTTClient mqtt(1024);
 
 unsigned long lastPublish = 0;
 unsigned long lastReconnect = 0;
+uint32_t totalParts = 0;
+uint32_t scrapParts = 0;
 
 bool connectMqtt() {
   Serial.println("Conectando ao AWS IoT Core...");
@@ -244,16 +246,29 @@ void loop() {
   }
 
   const float temperatura = analogRead(TEMP_PIN) * (150.0f / 4095.0f);
-  const float vibracao = analogRead(VIB_PIN) * (50.0f / 4095.0f);
+  const float vibracao = analogRead(VIB_PIN) * (10.0f / 4095.0f);
   const int rpm = lroundf(analogRead(RPM_PIN) * (10000.0f / 4095.0f));
+  const bool running = rpm > 0;
+  const char* machineState = running ? "RUNNING" : "STOPPED";
+
+  // Modelo didático: um ciclo por publicação com RPM ativo.
+  // Vibração >= 7 mm/s classifica a peça do ciclo como refugo.
+  if (running) {
+    totalParts++;
+    if (vibracao >= 7.0f) scrapParts++;
+  }
 
   char payload[384];
   snprintf(payload, sizeof(payload),
            "{\"device_id\":\"%s\",\"machine_type\":\"USINAGEM\","
            "\"timestamp\":%lld,\"temperatura\":%.2f,"
-           "\"vibracao\":%.2f,\"rpm\":%d}",
+           "\"vibracao\":%.2f,\"rpm\":%d,"
+           "\"machine_state\":\"%s\","
+           "\"pecas_produzidas\":%lu,\"pecas_defeito\":%lu}",
            DEVICE_ID, static_cast<long long>(timestamp),
-           temperatura, vibracao, rpm);
+           temperatura, vibracao, rpm, machineState,
+           static_cast<unsigned long>(totalParts),
+           static_cast<unsigned long>(scrapParts));
 
   // retained=false, QoS=1. O campo status é omitido para a Lambda calculá-lo.
   const bool published = mqtt.publish(TOPIC, payload, false, 1);
@@ -264,7 +279,9 @@ void loop() {
 }
 ```
 
-Temperatura, vibração e RPM são obrigatórios no contrato. O firmware omite `status` para a Lambda classificá-lo: `CRITICAL` se temperatura ≥ 90 °C ou vibração ≥ 7 mm/s; `WARNING` se temperatura ≥ 80 °C ou vibração ≥ 4,5 mm/s; `OPERATIONAL` nos demais casos. Também omite os contadores de peças para não inventar dados de produção.
+Temperatura, vibração e RPM são obrigatórios no contrato. O firmware omite `status` para a Lambda classificá-lo: `CRITICAL` se temperatura ≥ 90 °C ou vibração ≥ 7 mm/s; `WARNING` se temperatura ≥ 80 °C ou vibração ≥ 4,5 mm/s; `OPERATIONAL` nos demais casos. `machine_state` é independente do estado de alarme: RPM acima de zero significa `RUNNING`; RPM igual a zero significa `STOPPED`. Os contadores são acumulados durante a execução do ESP32 e reiniciam quando o dispositivo reinicia.
+
+No exercício, cada publicação de três segundos com RPM ativo representa uma peça produzida. Assim, a capacidade ideal é 1.200 peças/hora. Vibração ≥ 7 mm/s marca como refugo a peça daquele ciclo. Essa relação é uma hipótese didática do simulador, não uma regra para uma máquina industrial real.
 
 QoS 1 e `PUBACK` confirmam que o broker AWS IoT Core recebeu a publicação. Isso **não confirma** que a regra, a fila, a Lambda ou o InfluxDB concluíram o processamento; valide essas etapas separadamente.
 

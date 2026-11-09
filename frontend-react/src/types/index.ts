@@ -22,6 +22,8 @@ export interface OeeIndicators {
   qualidade: number;         // 0-100
   oee: number;               // 0-100
   periodo: string;
+  origem?: 'LIVE_PARTIAL' | 'DEMO' | 'MOCK' | string;
+  tempo_observado_segundos?: number;
   total_pecas?: number;
   pecas_boas?: number;
   pecas_refugo?: number;

@@ -25,9 +25,10 @@
     "temperatura": { "type": "number", "minimum": 0, "maximum": 150, "example": 72.4 },
     "vibracao": { "type": "number", "minimum": 0, "maximum": 50, "example": 2.35 },
     "rpm": { "type": "integer", "minimum": 0, "maximum": 10000, "example": 3480 },
+    "machine_state": { "type": "string", "enum": ["RUNNING", "STOPPED"], "description": "Estado operacional usado no cálculo de disponibilidade do OEE." },
     "status": { "type": "string", "enum": ["OPERATIONAL", "WARNING", "CRITICAL", "STOPPED"], "description": "Opcional; se omitido a Lambda calcula pelas faixas de temperatura e vibração." },
-    "pecas_produzidas": { "type": "integer", "minimum": 0, "example": 145 },
-    "pecas_defeito": { "type": "integer", "minimum": 0, "example": 3 }
+    "pecas_produzidas": { "type": "integer", "minimum": 0, "description": "Contador acumulado desde o início da execução do ESP32.", "example": 145 },
+    "pecas_defeito": { "type": "integer", "minimum": 0, "description": "Contador acumulado de refugos desde o início da execução do ESP32.", "example": 3 }
   }
 }
 ```
@@ -44,13 +45,14 @@ Exemplo de mensagem publicada:
   "temperatura": 72.8,
   "vibracao": 2.45,
   "rpm": 3480,
+  "machine_state": "RUNNING",
   "status": "OPERATIONAL",
   "pecas_produzidas": 15,
   "pecas_defeito": 1
 }
 ```
 
-`timestamp` é Unix Epoch em segundos; use NTP/horário UTC no ESP32. Se for omitido, a Lambda usa o horário de recebimento. `status`, `machine_type`, `pecas_produzidas` e `pecas_defeito` são opcionais; temperatura, vibração e RPM devem ser numéricos.
+`timestamp` é Unix Epoch em segundos; use NTP/horário UTC no ESP32. Se for omitido, a Lambda usa o horário de recebimento. `machine_state`, `status`, `machine_type`, `pecas_produzidas` e `pecas_defeito` são opcionais para ingestão; para calcular OEE real, envie o estado e os dois contadores acumulados. A Lambda deriva `machine_state` de RPM se o campo for omitido. No firmware didático atual, cada amostra a cada 3 s com RPM ativo representa uma peça e vibração ≥ 7 mm/s marca essa peça como refugo.
 
 Para criar o circuito com potenciômetros e publicar com TLS/QoS 1 no Wokwi, siga o [guia de montagem do ESP32](07_guia_esp32_wokwi.md).
 
@@ -129,9 +131,13 @@ Para criar o circuito com potenciômetros e publicar com TLS/QoS 1 no Wokwi, sig
   "tempo_parado_minutos": 36,
   "total_pecas": 480,
   "pecas_boas": 471,
-  "pecas_refugo": 9
+  "pecas_refugo": 9,
+  "origem": "LIVE_PARTIAL",
+  "tempo_observado_segundos": 3600
 }
 ```
+
+O perfil cloud calcula o OEE a partir das leituras marcadas como `data_origin=LIVE` no InfluxDB. `LIVE_PARTIAL` significa cálculo sobre os intervalos observados no período consultado; intervalos entre amostras maiores que 9 s são excluídos das métricas. A fórmula é `OEE = disponibilidade × performance × qualidade`. O ciclo ideal didático é 3 s/peça (1.200 peças/h). Sem ao menos duas amostras próximas com contadores presentes, o backend devolve o snapshot RDS de demonstração, marcado `origem: "DEMO"`.
 
 ---
 
@@ -167,48 +173,51 @@ No perfil cloud, os adapters ativos usam as origens abaixo:
 
 | Dados | Destino esperado |
 |---|---|
-| Catálogo de máquinas, snapshots OEE e alertas | RDS PostgreSQL; snapshots OEE atuais ainda são didáticos |
+| Catálogo de máquinas, snapshots OEE e alertas | RDS PostgreSQL; OEE do dia é calculado a partir de telemetria LIVE quando há dados suficientes, com snapshot DEMO como fallback |
 | Série temporal recente | InfluxDB; recebe a telemetria processada pela Lambda e também pode conter dados sintéticos de demonstração |
 | Treinamento e inferência | Flask privado; treinamento lê o histórico do InfluxDB e predições são solicitadas pelo backend Java |
 
-O perfil cloud ativa os adapters PostgreSQL, InfluxDB e Flask. Os adapters em `infrastructure/mock` são usados no perfil offline/local. O cálculo de OEE a partir de estado de máquina, período planejado e contadores reais ainda não está implementado.
+O perfil cloud ativa os adapters PostgreSQL, InfluxDB e Flask. Os adapters em `infrastructure/mock` são usados no perfil offline/local. Para o OEE didático, o período planejado corresponde ao intervalo coberto por amostras consecutivas (até 9 s); `RUNNING`/RPM ativo conta como tempo operando e `STOPPED`/RPM zero como parada. A capacidade ideal de 1.200 peças/hora decorre do ciclo simulado de uma peça a cada 3 s.
 
 ## 4. Esquema de Banco de Dados (RDS PostgreSQL)
 
+O Flyway aplica o esquema em `backend-java/src/main/resources/db/migration/V1__operational_schema.sql`. As tabelas atuais são:
+
 ```sql
--- Cadastro de Ativos Industriais
-CREATE TABLE IF NOT EXISTS maquinas (
-    id VARCHAR(50) PRIMARY KEY,
-    nome VARCHAR(100) NOT NULL,
-    tipo VARCHAR(50) NOT NULL,
-    capacidade_nominal_hora INT NOT NULL DEFAULT 60,
-    criado_em TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE machines (
+    device_id VARCHAR(120) PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    machine_type VARCHAR(80) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Consolidações de Indicadores OEE por Turno
-CREATE TABLE IF NOT EXISTS consolidados_oee (
-    id BIGSERIAL PRIMARY KEY,
-    maquina_id VARCHAR(50) REFERENCES maquinas(id),
-    data_referencia DATE NOT NULL,
-    turno INT NOT NULL,
-    disponibilidade NUMERIC(5,2) NOT NULL,
-    performance NUMERIC(5,2) NOT NULL,
-    qualidade NUMERIC(5,2) NOT NULL,
-    oee_geral NUMERIC(5,2) NOT NULL,
-    pecas_produzidas INT NOT NULL,
-    pecas_defeito INT NOT NULL,
-    criado_em TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE oee_snapshots (
+    device_id VARCHAR(120) NOT NULL REFERENCES machines(device_id),
+    period_date DATE NOT NULL,
+    availability NUMERIC(5, 2) NOT NULL CHECK (availability BETWEEN 0 AND 100),
+    performance NUMERIC(5, 2) NOT NULL CHECK (performance BETWEEN 0 AND 100),
+    quality NUMERIC(5, 2) NOT NULL CHECK (quality BETWEEN 0 AND 100),
+    oee NUMERIC(5, 2) NOT NULL CHECK (oee BETWEEN 0 AND 100),
+    operating_minutes INTEGER NOT NULL CHECK (operating_minutes >= 0),
+    downtime_minutes INTEGER NOT NULL CHECK (downtime_minutes >= 0),
+    total_parts INTEGER NOT NULL CHECK (total_parts >= 0),
+    good_parts INTEGER NOT NULL CHECK (good_parts >= 0),
+    scrap_parts INTEGER NOT NULL CHECK (scrap_parts >= 0),
+    data_origin VARCHAR(20) NOT NULL DEFAULT 'MODEL',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (device_id, period_date)
 );
 
--- Registro de Alertas e Manutenção Preditiva (Rede Neural)
-CREATE TABLE IF NOT EXISTS alertas_ia (
-    id BIGSERIAL PRIMARY KEY,
-    maquina_id VARCHAR(50) REFERENCES maquinas(id),
-    probabilidade_falha NUMERIC(5,4) NOT NULL,
-    diagnostico VARCHAR(50) NOT NULL,
-    recomendacao TEXT,
-    reconhecido BOOLEAN DEFAULT FALSE,
-    criado_em TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE alerts (
+    id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    device_id VARCHAR(120) NOT NULL REFERENCES machines(device_id),
+    occurred_at TIMESTAMPTZ NOT NULL,
+    failure_probability NUMERIC(6, 2) NOT NULL CHECK (failure_probability BETWEEN 0 AND 100),
+    predicted_status VARCHAR(40) NOT NULL,
+    recommendation TEXT NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    data_origin VARCHAR(20) NOT NULL DEFAULT 'MODEL',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ```
 

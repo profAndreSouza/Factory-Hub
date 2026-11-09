@@ -33,7 +33,7 @@ public class MockTelemetryDataAdapter implements TelemetryDataPort {
                     Math.round(temperature * 10.0) / 10.0,
                     Math.round(vibration * 10.0) / 10.0,
                     (int) (baseline[2] + Math.round(Math.cos(index * 0.31) * 24)),
-                    status, 480, 9));
+                    status, 480, 9, "RUNNING", "MOCK"));
         }
         return readings;
     }

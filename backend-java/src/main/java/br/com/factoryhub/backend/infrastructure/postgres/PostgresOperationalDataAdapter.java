@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -24,6 +26,8 @@ import java.util.Optional;
 @Component
 @Profile("postgres")
 public class PostgresOperationalDataAdapter implements OperationalDataPort {
+    private static final long MAX_SAMPLE_INTERVAL_SECONDS = 9;
+    private static final double IDEAL_CYCLE_SECONDS = 3.0;
     private final JdbcTemplate jdbc;
     private final TelemetryDataPort telemetry;
 
@@ -54,14 +58,86 @@ public class PostgresOperationalDataAdapter implements OperationalDataPort {
 
     @Override
     public Optional<OeeResponse> findOee(String deviceId, String period) {
-        LocalDate date = "hoje".equalsIgnoreCase(period) ? LocalDate.now() : LocalDate.parse(period);
+        LocalDate date = "hoje".equalsIgnoreCase(period)
+                ? LocalDate.now(ZoneOffset.UTC) : LocalDate.parse(period);
+        Instant start = date.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant end = date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        Optional<OeeResponse> liveOee = calculateLiveOee(
+                deviceId, date, telemetry.findForPeriod(deviceId, start, end));
+        if (liveOee.isPresent()) return liveOee;
+
         return jdbc.query("""
                         SELECT device_id, period_date, availability, performance, quality, oee,
-                               operating_minutes, downtime_minutes, total_parts, good_parts, scrap_parts
+                               operating_minutes, downtime_minutes, total_parts, good_parts, scrap_parts, data_origin
                         FROM oee_snapshots
                         WHERE device_id = ? AND period_date = ?
                         """,
                 (rs, rowNum) -> mapOee(rs), deviceId, date).stream().findFirst();
+    }
+
+    private static Optional<OeeResponse> calculateLiveOee(
+            String deviceId, LocalDate date, List<TelemetryResponse> readings) {
+        if (readings.size() < 2) return Optional.empty();
+
+        long observedSeconds = 0;
+        long operatingSeconds = 0;
+        long totalParts = 0;
+        long scrapParts = 0;
+        boolean hasCounters = false;
+
+        for (int index = 1; index < readings.size(); index++) {
+            TelemetryResponse previous = readings.get(index - 1);
+            TelemetryResponse current = readings.get(index);
+            long interval = Duration.between(previous.timestamp(), current.timestamp()).getSeconds();
+            if (interval <= 0 || interval > MAX_SAMPLE_INTERVAL_SECONDS) continue;
+
+            observedSeconds += interval;
+            if (isRunning(previous)) operatingSeconds += interval;
+
+            if (previous.pecas_produzidas() != null && current.pecas_produzidas() != null
+                    && previous.pecas_defeito() != null && current.pecas_defeito() != null) {
+                hasCounters = true;
+                totalParts += counterDelta(previous.pecas_produzidas(), current.pecas_produzidas());
+                scrapParts += counterDelta(previous.pecas_defeito(), current.pecas_defeito());
+            }
+        }
+
+        if (observedSeconds == 0 || !hasCounters) return Optional.empty();
+
+        long goodParts = Math.max(0, totalParts - scrapParts);
+        double availability = percentage(operatingSeconds, observedSeconds);
+        double performance = operatingSeconds == 0 ? 0.0
+                : Math.min(100.0, (totalParts * IDEAL_CYCLE_SECONDS / operatingSeconds) * 100.0);
+        double quality = totalParts == 0 ? 100.0 : percentage(goodParts, totalParts);
+        double oee = availability * performance * quality / 10000.0;
+
+        return Optional.of(new OeeResponse(
+                deviceId, date.toString(), round(availability), round(performance), round(quality), round(oee),
+                (int) Math.round(operatingSeconds / 60.0),
+                (int) Math.round((observedSeconds - operatingSeconds) / 60.0),
+                (int) Math.min(totalParts, Integer.MAX_VALUE),
+                (int) Math.min(goodParts, Integer.MAX_VALUE),
+                (int) Math.min(scrapParts, Integer.MAX_VALUE),
+                "LIVE_PARTIAL", (int) Math.min(observedSeconds, Integer.MAX_VALUE)));
+    }
+
+    private static boolean isRunning(TelemetryResponse reading) {
+        if (reading.machine_state() != null) {
+            return "RUNNING".equalsIgnoreCase(reading.machine_state());
+        }
+        return reading.rpm() > 0;
+    }
+
+    private static long counterDelta(int previous, int current) {
+        return current >= previous ? current - previous : Math.max(0, current);
+    }
+
+    private static double percentage(long numerator, long denominator) {
+        return denominator == 0 ? 0.0 : (numerator * 100.0) / denominator;
+    }
+
+    private static double round(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 
     @Override
@@ -106,6 +182,8 @@ public class PostgresOperationalDataAdapter implements OperationalDataPort {
                 rs.getString("device_id"), rs.getDate("period_date").toLocalDate().toString(),
                 rs.getDouble("availability"), rs.getDouble("performance"), rs.getDouble("quality"),
                 rs.getDouble("oee"), rs.getInt("operating_minutes"), rs.getInt("downtime_minutes"),
-                rs.getInt("total_parts"), rs.getInt("good_parts"), rs.getInt("scrap_parts"));
+                rs.getInt("total_parts"), rs.getInt("good_parts"), rs.getInt("scrap_parts"),
+                rs.getString("data_origin"),
+                (rs.getInt("operating_minutes") + rs.getInt("downtime_minutes")) * 60);
     }
 }
