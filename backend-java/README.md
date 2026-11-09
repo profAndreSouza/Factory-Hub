@@ -26,6 +26,7 @@ O frontend fica em `http://localhost`; a API pode ser acessada em `http://localh
 | `GET /api/v1/indicadores/{deviceId}/oee?periodo=hoje` | Indicadores OEE e contadores do período | InfluxDB `LIVE_PARTIAL`; fallback do PostgreSQL marcado `DEMO` |
 | `GET /api/v1/alertas` | Alertas de condição/anomalia | PostgreSQL; inclui predições de risco persistidas |
 | `GET /api/v1/telemetria/{deviceId}/recente` | Série recente de sensores | InfluxDB |
+| `GET /api/v1/consolidados/{deviceId}/recente?limit=10` | Últimas janelas de cinco minutos consolidadas | PostgreSQL/RDS |
 | `POST /api/v1/predicoes` | Predição de condição de máquina | Serviço Flask; alertas não operacionais são persistidos no PostgreSQL |
 | `POST /api/v1/treinamentos` | Solicita retreinamento do modelo | Flask com histórico do InfluxDB |
 | `GET /api/v1/treinamentos/status` | Etapa, mensagens e métricas do treino | Flask |
@@ -33,6 +34,8 @@ O frontend fica em `http://localhost`; a API pode ser acessada em `http://localh
 | `GET /api/v1/health` | Estado das dependências | Java, Flask, InfluxDB e PostgreSQL consultados; AWS IoT Core aparece `UNKNOWN` / `NOT_MONITORED` |
 
 O React chama apenas `/api/...`. O Nginx encaminha as chamadas para o Java; o navegador não acessa diretamente Flask, InfluxDB ou RDS.
+
+Com os perfis `postgres,influx`, o Java executa a consolidação em janelas UTC fechadas de cinco minutos. A cada execução, lê telemetria `LIVE` do InfluxDB, calcula quantidade de amostras, médias/mínimos/máximos de temperatura e vibração, RPM médio, deltas dos contadores de produção/refugo e estado resumido, e grava uma linha por máquina em `telemetry_consolidations` no RDS. Um checkpoint persistido permite retomar janelas após reinício; a chave por máquina e fim da janela torna a gravação repetível. O endpoint acima alimenta a tabela de consolidados do painel. Dados anteriores à ativação do job não são reprocessados automaticamente: no primeiro ciclo é consolidada a janela fechada mais recente.
 
 ## Validar treino, predição e alerta
 

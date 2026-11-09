@@ -6,6 +6,27 @@ export interface TelemetryReading {
   status: 'OPERATIONAL' | 'WARNING' | 'CRITICAL' | 'STOPPED' | 'UNKNOWN';
   pecas_produzidas?: number;
   pecas_defeito?: number;
+  machine_state?: string;
+  data_origin?: string;
+}
+
+export interface TelemetryConsolidation {
+  device_id: string;
+  window_start: string;
+  window_end: string;
+  sample_count: number;
+  avg_temperatura: number;
+  min_temperatura: number;
+  max_temperatura: number;
+  avg_vibracao: number;
+  min_vibracao: number;
+  max_vibracao: number;
+  avg_rpm: number;
+  total_pecas: number;
+  pecas_defeito: number;
+  status: string;
+  data_origin: string;
+  created_at: string;
 }
 
 export interface Machine {

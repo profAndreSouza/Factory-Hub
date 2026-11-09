@@ -9,8 +9,9 @@ import {
   getTelemetria,
   getOeeIndicators,
   getAlertas,
+  getRecentConsolidations,
 } from '../services/telemetryService';
-import { Machine, TelemetryReading, OeeIndicators, Alert } from '../types';
+import { Machine, TelemetryReading, TelemetryConsolidation, OeeIndicators, Alert } from '../types';
 
 const SEVERITY_ROW: Record<Alert['severidade'], string> = {
   LOW: 'bg-gray-50 dark:bg-gray-900/40',
@@ -31,6 +32,7 @@ export const SmartN1Dashboard: React.FC = () => {
   const [oee, setOee] = useState<OeeIndicators | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [telemetry, setTelemetry] = useState<TelemetryReading[]>([]);
+  const [consolidations, setConsolidations] = useState<TelemetryConsolidation[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('esp32-torno-01');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [loadError, setLoadError] = useState(false);
@@ -51,12 +53,12 @@ export const SmartN1Dashboard: React.FC = () => {
   }, []);
 
   const fetchTelemetry = useCallback(async (deviceId: string) => {
-    try {
-      const t = await getTelemetria(deviceId);
-      setTelemetry(t);
-    } catch {
-      setTelemetry([]);
-    }
+    const [rawResult, consolidatedResult] = await Promise.allSettled([
+      getTelemetria(deviceId),
+      getRecentConsolidations(deviceId, 10),
+    ]);
+    setTelemetry(rawResult.status === 'fulfilled' ? rawResult.value : []);
+    setConsolidations(consolidatedResult.status === 'fulfilled' ? consolidatedResult.value : []);
   }, []);
 
   useEffect(() => {
@@ -66,7 +68,10 @@ export const SmartN1Dashboard: React.FC = () => {
   }, [fetchAll]);
 
   useEffect(() => {
+    if (!selectedDevice) return;
     fetchTelemetry(selectedDevice);
+    const interval = setInterval(() => fetchTelemetry(selectedDevice), 10000);
+    return () => clearInterval(interval);
   }, [selectedDevice, fetchTelemetry]);
 
   useEffect(() => {
@@ -227,6 +232,82 @@ export const SmartN1Dashboard: React.FC = () => {
           </select>
         </div>
         <TelemetryLineChart data={telemetry} title={`${machines.find(m => m.device_id === selectedDevice)?.nome ?? selectedDevice} — últimos 30 min`} />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="text-sm font-bold text-gray-800 dark:text-gray-100">Leituras brutas · InfluxDB</h2>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Últimas amostras de {selectedDevice}; atualização a cada 10 segundos.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-300">
+                <tr>
+                  <th className="px-3 py-2 text-left">Horário</th>
+                  <th className="px-3 py-2 text-right">Temp °C</th>
+                  <th className="px-3 py-2 text-right">Vib. mm/s</th>
+                  <th className="px-3 py-2 text-right">RPM</th>
+                  <th className="px-3 py-2 text-left">Estado</th>
+                  <th className="px-3 py-2 text-right">Peças</th>
+                  <th className="px-3 py-2 text-right">Refugo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {[...telemetry].slice(-10).reverse().map((reading, index) => (
+                  <tr key={`${reading.timestamp}-${index}`}>
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-500 dark:text-gray-400">{new Date(reading.timestamp).toLocaleTimeString('pt-BR')}</td>
+                    <td className="px-3 py-2 text-right font-mono text-gray-800 dark:text-gray-200">{reading.temperatura.toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-gray-800 dark:text-gray-200">{reading.vibracao.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-gray-800 dark:text-gray-200">{reading.rpm}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{reading.machine_state ?? reading.status}</td>
+                    <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-300">{reading.pecas_produzidas ?? '—'}</td>
+                    <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-300">{reading.pecas_defeito ?? '—'}</td>
+                  </tr>
+                ))}
+                {!telemetry.length && <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Aguardando leituras no InfluxDB.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="text-sm font-bold text-gray-800 dark:text-gray-100">Consolidados · RDS PostgreSQL</h2>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Resumo por janela de 5 minutos gerado pelo backend.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-300">
+                <tr>
+                  <th className="px-3 py-2 text-left">Janela encerrada</th>
+                  <th className="px-3 py-2 text-right">Amostras</th>
+                  <th className="px-3 py-2 text-right">Temp. média</th>
+                  <th className="px-3 py-2 text-right">Vib. média</th>
+                  <th className="px-3 py-2 text-right">RPM médio</th>
+                  <th className="px-3 py-2 text-right">Peças</th>
+                  <th className="px-3 py-2 text-right">Refugo</th>
+                  <th className="px-3 py-2 text-left">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {consolidations.map(row => (
+                  <tr key={`${row.device_id}-${row.window_end}`}>
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-500 dark:text-gray-400">{new Date(row.window_end).toLocaleTimeString('pt-BR')}</td>
+                    <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-300">{row.sample_count}</td>
+                    <td className="px-3 py-2 text-right font-mono text-gray-800 dark:text-gray-200">{row.avg_temperatura.toFixed(1)} °C</td>
+                    <td className="px-3 py-2 text-right font-mono text-gray-800 dark:text-gray-200">{row.avg_vibracao.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-gray-800 dark:text-gray-200">{row.avg_rpm.toFixed(0)}</td>
+                    <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-300">{row.total_pecas}</td>
+                    <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-300">{row.pecas_defeito}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{row.status}</td>
+                  </tr>
+                ))}
+                {!consolidations.length && <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Nenhuma janela consolidada ainda; o próximo processamento ocorre em até 5 minutos.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
 
       {/* Alerts Table */}

@@ -1,5 +1,5 @@
 import { api } from './api';
-import { Machine, TelemetryReading, OeeIndicators, Alert, ServiceHealth } from '../types';
+import { Machine, TelemetryReading, TelemetryConsolidation, OeeIndicators, Alert, ServiceHealth } from '../types';
 
 interface BackendMachine extends Omit<Partial<Machine>, 'ultima_leitura'> {
   id?: string;
@@ -30,6 +30,14 @@ export async function getMaquinas(): Promise<Machine[]> {
 export async function getTelemetria(deviceId: string): Promise<TelemetryReading[]> {
   const { data } = await api.get<Array<TelemetryReading & { data_hora?: string }>>(`/api/v1/telemetria/${encodeURIComponent(deviceId)}/recente`);
   return Array.isArray(data) ? data.map(reading => ({ ...reading, timestamp: reading.timestamp ?? reading.data_hora ?? '' })) : [];
+}
+
+export async function getRecentConsolidations(deviceId: string, limit = 10): Promise<TelemetryConsolidation[]> {
+  const { data } = await api.get<TelemetryConsolidation[]>(
+    `/api/v1/consolidados/${encodeURIComponent(deviceId)}/recente`,
+    { params: { limit } },
+  );
+  return Array.isArray(data) ? data : [];
 }
 
 export async function getOeeIndicators(deviceId: string, periodo: string): Promise<OeeIndicators> {

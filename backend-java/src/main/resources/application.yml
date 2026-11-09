@@ -18,6 +18,8 @@ factoryhub:
     org: ${INFLUXDB_ORG:factoryhub}
     bucket: ${INFLUXDB_BUCKET:telemetry}
     token: ${INFLUXDB_TOKEN:}
+  consolidation:
+    cron: ${FACTORYHUB_CONSOLIDATION_CRON:0 */5 * * * *}
 
 management:
   endpoints:

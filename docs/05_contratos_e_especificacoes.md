@@ -141,7 +141,35 @@ O perfil cloud calcula o OEE a partir das leituras marcadas como `data_origin=LI
 
 ---
 
-### 3.3. Proxy de Inferência: `POST /api/v1/predicoes`
+### 3.3. Consolidacoes recentes: `GET /api/v1/consolidados/{deviceId}/recente?limit=10`
+Consulta no RDS as consolidacoes mais recentes da maquina. `limit` e opcional (padrao 10, maximo 100).
+
+```json
+[
+  {
+    "device_id": "esp32-torno-01",
+    "window_start": "2026-11-09T14:00:00Z",
+    "window_end": "2026-11-09T14:05:00Z",
+    "sample_count": 100,
+    "avg_temperatura": 72.4,
+    "min_temperatura": 70.1,
+    "max_temperatura": 74.8,
+    "avg_vibracao": 2.35,
+    "min_vibracao": 1.8,
+    "max_vibracao": 3.1,
+    "avg_rpm": 3480.0,
+    "total_pecas": 100,
+    "pecas_defeito": 3,
+    "status": "OPERATIONAL",
+    "data_origin": "LIVE",
+    "created_at": "2026-11-09T14:05:04Z"
+  }
+]
+```
+
+Com os perfis `postgres,influx`, um job do backend executa a cada cinco minutos (cron UTC), le medicoes `LIVE` do InfluxDB na ultima janela fechada e grava no RDS uma consolidacao por maquina. A consolidacao contem quantidade de amostras, media/minimo/maximo de temperatura e vibracao, RPM medio, deltas dos contadores e estado resumido. O checkpoint persistido permite retomar janelas pendentes apos reinicio; janelas sem medicoes avancam o checkpoint sem criar uma linha. O primeiro ciclo processa somente a janela fechada mais recente, sem backfill automatico de historico.
+
+### 3.4. Proxy de Inferência: `POST /api/v1/predicoes`
 O navegador envia a solicitação somente ao backend Java. O backend valida o payload, chama internamente o serviço Flask (`POST /predict`) e devolve a resposta ao frontend. O endereço do Flask não deve ser exposto nem configurado no bundle do navegador.
 
 **Requisição:** mesmo formato do contrato Flask, com `device_id`, `temperatura`, `vibracao` e `rpm`.
@@ -149,7 +177,7 @@ O navegador envia a solicitação somente ao backend Java. O backend valida o pa
 **Resposta:** mesmo formato da resposta Flask, incluindo `status_previsto`, `probabilidade_falha`, `recomendacao` e `modelo_versao`.
 No perfil cloud (`postgres,influx`), o adapter do backend encaminha a requisição ao Flask privado e persiste predições não operacionais como alertas no RDS. O perfil `mock` permanece disponível para desenvolvimento local offline. O modelo atual prediz a classe da proxima leitura registrada da maquina; o horario depende da frequencia de amostragem e nao representa um horizonte fixo em minutos.
 
-### 3.4. Saúde dos Serviços: `GET /api/v1/health`
+### 3.5. Saúde dos Serviços: `GET /api/v1/health`
 O backend agrega o estado dos componentes e fornece a lista exibida pelo frontend. Inclua pelo menos nome, estado e, quando disponível, latência. O backend é a única fonte do estado do Flask, banco, broker e demais serviços.
 
 ```json
@@ -168,7 +196,7 @@ Estados esperados: `UP`/`ONLINE`, `DEGRADED`, `DOWN`/`OFFLINE` e `UNKNOWN` quand
 
 No perfil cloud, Java consulta Flask, RDS e InfluxDB de verdade. O IoT Core encaminha mensagens pela regra IoT e SQS, mas seu estado de saúde não é consultado pela API e deve aparecer como `UNKNOWN` com `source: "NOT_MONITORED"`. Em execução offline, as dependências sem conexão podem aparecer como `MOCK`.
 
-### 3.5. Adaptadores de dados no backend
+### 3.6. Adaptadores de dados no backend
 No perfil cloud, os adapters ativos usam as origens abaixo:
 
 | Dados | Destino esperado |
@@ -179,7 +207,7 @@ No perfil cloud, os adapters ativos usam as origens abaixo:
 
 O perfil cloud ativa os adapters PostgreSQL, InfluxDB e Flask. Os adapters em `infrastructure/mock` são usados no perfil offline/local. Para o OEE didático, o período planejado corresponde ao intervalo coberto por amostras consecutivas (até 9 s); `RUNNING`/RPM ativo conta como tempo operando e `STOPPED`/RPM zero como parada. A capacidade ideal de 1.200 peças/hora decorre do ciclo simulado de uma peça a cada 3 s.
 
-### 3.6. Treinamento do modelo
+### 3.7. Treinamento do modelo
 O frontend usa `POST /api/v1/treinamentos` para iniciar o retreino, `GET /api/v1/treinamentos/status` para acompanhar mensagens e metricas e `GET /api/v1/treinamentos/data-info` para consultar as medicoes atuais. A contagem e consultada a cada 15 segundos e retorna `raw_measurements`, `training_records`, `training_data_source` e `observed_at`. `training_records` representa pares temporais: uma leitura atual para prever a classe da proxima leitura da mesma maquina. A contagem do ultimo treino so muda quando um novo treinamento termina.
 
 ## 4. Esquema de Banco de Dados (RDS PostgreSQL)

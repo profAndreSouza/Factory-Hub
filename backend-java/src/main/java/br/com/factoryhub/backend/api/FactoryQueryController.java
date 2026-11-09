@@ -3,9 +3,12 @@ package br.com.factoryhub.backend.api;
 import br.com.factoryhub.backend.api.dto.AlertResponse;
 import br.com.factoryhub.backend.api.dto.MachineResponse;
 import br.com.factoryhub.backend.api.dto.OeeResponse;
+import br.com.factoryhub.backend.api.dto.TelemetryConsolidationResponse;
 import br.com.factoryhub.backend.api.dto.TelemetryResponse;
 import br.com.factoryhub.backend.application.port.OperationalDataPort;
+import br.com.factoryhub.backend.application.port.TelemetryConsolidationPort;
 import br.com.factoryhub.backend.application.port.TelemetryDataPort;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,10 +24,13 @@ import java.util.List;
 public class FactoryQueryController {
     private final OperationalDataPort operationalData;
     private final TelemetryDataPort telemetryData;
+    private final ObjectProvider<TelemetryConsolidationPort> telemetryConsolidations;
 
-    public FactoryQueryController(OperationalDataPort operationalData, TelemetryDataPort telemetryData) {
+    public FactoryQueryController(OperationalDataPort operationalData, TelemetryDataPort telemetryData,
+                                  ObjectProvider<TelemetryConsolidationPort> telemetryConsolidations) {
         this.operationalData = operationalData;
         this.telemetryData = telemetryData;
+        this.telemetryConsolidations = telemetryConsolidations;
     }
 
     @GetMapping("/maquinas")
@@ -35,6 +41,13 @@ public class FactoryQueryController {
     @GetMapping("/telemetria/{deviceId}/recente")
     public List<TelemetryResponse> recentTelemetry(@PathVariable String deviceId) {
         return telemetryData.findRecent(deviceId);
+    }
+
+    @GetMapping("/consolidados/{deviceId}/recente")
+    public List<TelemetryConsolidationResponse> recentConsolidations(
+            @PathVariable String deviceId, @RequestParam(defaultValue = "10") int limit) {
+        TelemetryConsolidationPort port = telemetryConsolidations.getIfAvailable();
+        return port == null ? List.of() : port.findRecent(deviceId, Math.max(1, Math.min(limit, 100)));
     }
 
     @GetMapping("/indicadores/{deviceId}/oee")

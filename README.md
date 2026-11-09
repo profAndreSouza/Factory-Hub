@@ -179,6 +179,7 @@ Para montar o circuito Wokwi com três potenciômetros, configurar certificados 
 ### 5.3. Endpoints da API Java (Spring Boot)
 - `GET /api/v1/maquinas`: Lista todas as máquinas cadastradas e último status.
 - `GET /api/v1/telemetria/{deviceId}/recente`: Últimas medições brutas para plotagem de gráficos ao vivo.
+- `GET /api/v1/consolidados/{deviceId}/recente?limit=10`: Últimas janelas de cinco minutos consolidadas no RDS.
 - `GET /api/v1/indicadores/{deviceId}/oee?periodo=hoje`: Retorna Disponibilidade, Performance, Qualidade e OEE consolidado.
 - `GET /api/v1/alertas`: Lista alertas operacionais e predições não operacionais persistidas no RDS.
 
