@@ -144,7 +144,7 @@ export const HomePage: React.FC = () => {
         <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
           <span>🔌</span> Status dos Serviços
         </h2>
-        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Os status são enviados pela API Java. Dependências marcadas como MOCK ainda não consultam os serviços reais.</p>
+        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Os status são enviados pela API Java. MOCK indica um estado simulado; UNKNOWN indica que a dependência ainda não é monitorada.</p>
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
           {healthError ? (
             <div className="text-sm text-red-500">Não foi possível carregar os status enviados pelo backend.</div>

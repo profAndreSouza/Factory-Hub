@@ -2,7 +2,7 @@
 
 > **Projeto Integrador Multidisciplinar** conectando as disciplinas de **Automação Industrial**, **Ciência de Dados**, **Computação em Nuvem** e **Integração e Entrega Contínua (DevOps)**, dimensionado para o ambiente **AWS Academy Learner Lab**.
 
-> **Estado atual da integracao:** frontend -> API Java -> PostgreSQL/RDS e InfluxDB; Java usa PostgreSQL para catálogo de máquinas, snapshots OEE e alertas, e consulta telemetria bruta no InfluxDB. Flask treina a Random Forest com o histórico do InfluxDB. Os snapshots OEE iniciais são didáticos; o cálculo a partir de turnos reais ainda precisa ser implementado. A infraestrutura AWS e o deploy SSM já foram provisionados e executados; o IoT Core aguarda certificado/política do dispositivo ESP32.
+> **Estado atual da integração:** frontend → API Java → PostgreSQL/RDS e InfluxDB; Java usa PostgreSQL para catálogo de máquinas, snapshots OEE e alertas, e consulta telemetria no InfluxDB. Flask treina a Random Forest com o histórico do InfluxDB. O fluxo Wokwi → IoT Core → SQS → Lambda → InfluxDB → API foi validado. Os snapshots OEE iniciais são didáticos; o cálculo a partir de dados operacionais reais ainda precisa ser implementado. O status do IoT Core ainda não é monitorado pela API.
 
 ---
 

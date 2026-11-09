@@ -15,7 +15,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Reports real Flask health and clearly marked mock states for unconnected services. */
+/** Reports live dependency health and marks services that are not monitored. */
 @Component
 public class DependencyHealthAdapter implements DependencyHealthPort {
     private final RestClient flaskClient;
@@ -34,7 +34,7 @@ public class DependencyHealthAdapter implements DependencyHealthPort {
     public List<ServiceHealthResponse> dependencies() {
         List<ServiceHealthResponse> services = new ArrayList<>();
         services.add(flaskHealth());
-        services.add(new ServiceHealthResponse("MQTT Broker", "UP", null, "MOCK"));
+        services.add(new ServiceHealthResponse("AWS IoT Core / MQTT", "UNKNOWN", null, "NOT_MONITORED"));
         services.add(influxHealth());
         services.add(rdsHealth());
         return services;
