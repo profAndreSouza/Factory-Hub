@@ -82,7 +82,13 @@ jobs:
           chmod 600 "$temp_env"
           mv "$temp_env" "$env_file"
           IMAGE_TAG=__IMAGE_TAG__ docker compose --env-file "$env_file" -f docker-compose.cloud.yml pull
-          IMAGE_TAG=__IMAGE_TAG__ docker compose --env-file "$env_file" -f docker-compose.cloud.yml up -d --remove-orphans
+          if ! IMAGE_TAG=__IMAGE_TAG__ docker compose --env-file "$env_file" -f docker-compose.cloud.yml up -d --remove-orphans; then
+            echo "Compose startup failed; container status follows:"
+            docker compose --env-file "$env_file" -f docker-compose.cloud.yml ps >&2 || true
+            echo "Backend Java logs follow:"
+            docker compose --env-file "$env_file" -f docker-compose.cloud.yml logs --no-color --tail=100 backend-java >&2 || true
+            exit 1
+          fi
           REMOTE_SCRIPT
           )
           deployment_command=${deployment_command//__AWS_REGION__/$AWS_REGION}
@@ -106,7 +112,12 @@ jobs:
             case "$status" in
               Success) exit 0 ;;
               Failed|Cancelled|TimedOut|Undeliverable|Terminated)
-                echo "Remote SSM error output:"
+                echo "Remote SSM standard output:"
+                aws ssm get-command-invocation \
+                  --command-id "$command_id" \
+                  --instance-id "$(aws ssm list-command-invocations --command-id "$command_id" --details --query 'CommandInvocations[0].InstanceId' --output text)" \
+                  --query StandardOutputContent --output text || true
+                echo "Remote SSM standard error:"
                 aws ssm get-command-invocation \
                   --command-id "$command_id" \
                   --instance-id "$(aws ssm list-command-invocations --command-id "$command_id" --details --query 'CommandInvocations[0].InstanceId' --output text)" \

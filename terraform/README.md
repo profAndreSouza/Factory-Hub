@@ -69,7 +69,7 @@ O backend guarda state e lock no S3. O principal AWS usado pelo GitHub Actions p
 
 A configuração inclui EC2 `t3.small`, RDS PostgreSQL `db.t3.micro` Single-AZ e um endpoint de interface de CloudWatch Logs, além de SQS, Lambda e rede. Esses serviços podem gerar cobrança no Learner Lab. Não há NAT Gateway nem Load Balancer.
 
-O output `frontend_url` aponta para o portal HTTP na porta 80. InfluxDB na porta 8086 aceita tráfego da Lambda; PostgreSQL 5432 aceita conexões da EC2. Java 8080, Flask 5000 e SSH 22 não são expostos publicamente. Não há TLS de entrada configurado.
+O output `frontend_url` aponta para o portal HTTP na porta 80. InfluxDB na porta 8086 aceita tráfego da Lambda; PostgreSQL 5432 permite conexão de saída da EC2 e entrada somente do security group da aplicação. Java 8080, Flask 5000 e SSH 22 não são expostos publicamente. Não há TLS de entrada configurado.
 
 ## Deploy da aplicação via SSM
 
