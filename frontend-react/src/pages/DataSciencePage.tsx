@@ -98,8 +98,10 @@ export const DataSciencePage: React.FC = () => {
     };
   }, []);
 
+  const trainingState = training?.state;
+
   useEffect(() => {
-    if (training && training.state !== 'running') return;
+    if (trainingState && trainingState !== 'running') return;
     let active = true;
     const refreshTraining = () => {
       getModelTrainingStatus().then(status => {
@@ -116,7 +118,7 @@ export const DataSciencePage: React.FC = () => {
       active = false;
       clearInterval(interval);
     };
-  }, [training?.state]);
+  }, [trainingState]);
 
   const handleTrainModel = async () => {
     setTrainingLoading(true);

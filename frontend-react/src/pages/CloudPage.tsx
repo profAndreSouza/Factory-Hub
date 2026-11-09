@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { PageHeader } from '../components/common/PageHeader';
 import { SectionTabs } from '../components/common/SectionTabs';
 import { TheoryBox } from '../components/common/TheoryBox';

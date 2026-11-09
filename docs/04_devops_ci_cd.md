@@ -50,23 +50,26 @@ Todo commit deve seguir a padronização:
 
 ## 3. Piramide de Testes & Quality Gates
 
-O projeto implementa testes unitarios para componentes React e logica de treinamento Flask, testes de integracao HTTP para a API Flask e endpoints Spring MVC, e testes E2E de navegacao no Chromium. Os testes de API usam fontes/servicos substitutos para nao depender de AWS, RDS, InfluxDB ou Docker durante a validacao.
+O projeto combina testes unitarios, integracao HTTP, E2E no Chromium, lint estatico e construcao de imagens Docker sem publicacao. A suite E2E sobe a integracao React + Nginx + Java + Flask via Docker Compose; suites unitarias e de API usam fixtures para nao depender da AWS, RDS ou InfluxDB.
 
 ### Quality Gate Obrigatorio no CI
-O workflow `ci.yml` chama o workflow reutilizavel `quality-gates.yml` em pull requests, pushes para `main`/`develop` e execucoes manuais. A publicacao manual chama os mesmos gates e so inicia o job de Docker Hub quando todos passam:
+O workflow `ci.yml` chama o workflow reutilizavel `quality-gates.yml` em pull requests, pushes para `main`/`develop` e execucoes manuais. A publicacao manual chama os mesmos gates e so inicia o job do Docker Hub quando todos passam:
 
-1. **Flask:** testes unitarios de preparacao temporal/treinamento e testes de integracao das rotas `/health`, `/model/info`, `/predict` e `/train`.
-2. **Java:** testes de integracao HTTP e validacao dos contratos REST com MockMvc.
-3. **React:** testes unitarios da navegacao, verificacao TypeScript e build de producao.
-4. **E2E:** navegador Chromium abre o portal, navega entre modulos e verifica a pagina de automacao; as respostas da API sao isoladas com fixtures para testar o fluxo da interface.
+1. **Python lint:** Ruff verifica o codigo Flask, Lambda e testes.
+2. **React lint:** ESLint verifica TypeScript, imports, hooks e variaveis nao utilizadas.
+3. **Flask:** testes unitarios de preparacao temporal/treinamento e de integracao das rotas.
+4. **Java:** testes de integracao HTTP e contratos REST com MockMvc.
+5. **Lambda SQS:** testes unitarios do Line Protocol e de processamento parcial/validacao de payload.
+6. **React:** testes unitarios, verificacao TypeScript e build de producao.
+7. **E2E:** Chromium valida navegador -> Nginx -> API Java -> Flask em Docker Compose, alem do fluxo isolado com fixtures.
+8. **Containers:** BuildKit constroi as tres imagens de producao com `push: false`; o Compose E2E tambem inicia e verifica os servicos integrados.
 
-Qualquer falha bloqueia o job `publish`, que depende de `quality-gates`. Configure tambem `quality-gates / Flask unit and integration tests`, `quality-gates / Java backend unit and API integration tests`, `quality-gates / React unit tests and production build` e `quality-gates / Browser end-to-end tests` como checks obrigatorios nas regras de branch se quiser bloquear merges.
-
+Qualquer falha bloqueia o job `publish`, que depende de `quality-gates`. Configure os jobs de lint, testes, E2E e Docker exibidos pela execucao `ci.yml` como checks obrigatorios nas regras de branch se quiser bloquear merges.
 ---
 
 ## 4. Workflows do GitHub Actions
 
-O repositório possui dois workflows separados:
+O repositório possui pipelines separados:
 
 1. `.github/workflows/deploy-ssm.yml` é acionado somente de forma manual em **Actions → Deploy through SSM → Run workflow**. Ele não constrói nem publica imagens. A EC2 baixa a tag `latest` já publicada no Docker Hub usando Systems Manager Run Command; o SSM Agent recebe o comando por conexão de saída HTTPS/443, sem abrir a porta 22. O workflow prepara Docker/Compose se necessário, clona o repositório caso `/opt/factoryhub` ainda não exista, lê os parâmetros de runtime no SSM, atualiza `.env` e executa:
    ```bash

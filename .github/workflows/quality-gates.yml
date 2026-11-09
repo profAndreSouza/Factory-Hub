@@ -1,4 +1,4 @@
-name: Quality gates
+﻿name: Quality gates
 
 on:
   workflow_call:
@@ -8,6 +8,35 @@ permissions:
   contents: read
 
 jobs:
+  python-lint:
+    name: Python lint (Flask and Lambda)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Ruff
+        run: python -m pip install ruff
+      - name: Check Python source and tests
+        run: ruff check --select E4,E7,E9,F ml-service/factoryhub_ml ml-service/tests terraform/lambda tests/lambda
+
+  frontend-lint:
+    name: TypeScript and React lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-react
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend-react/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
   flask-tests:
     name: Flask unit and integration tests
     runs-on: ubuntu-latest
@@ -49,7 +78,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: pip
       - name: Install test runner
         run: python -m pip install pytest
       - name: Run tests
@@ -73,7 +101,7 @@ jobs:
       - run: npm run build
 
   e2e-tests:
-    name: Browser end-to-end tests
+    name: Browser and full-stack end-to-end tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -86,9 +114,38 @@ jobs:
           cache: npm
           cache-dependency-path: frontend-react/package-lock.json
       - run: npm ci
+      - name: Start Java and React integration stack
+        run: docker compose -f ../docker-compose.e2e.yml up -d --build --wait --wait-timeout 240
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Run browser tests
         run: npm run test:e2e
         env:
           CI: 'true'
+          E2E_BASE_URL: http://127.0.0.1:4173
+      - name: Stop integration stack
+        if: always()
+        run: docker compose -f ../docker-compose.e2e.yml down --volumes
+
+  container-builds:
+    name: Docker build (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: ml-service
+            context: ./ml-service
+          - service: backend-java
+            context: ./backend-java
+          - service: frontend-react
+            context: ./frontend-react
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image without publishing
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          tags: factoryhub/${{ matrix.service }}:quality-gate

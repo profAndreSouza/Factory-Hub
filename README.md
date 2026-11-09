@@ -13,19 +13,19 @@ O **Factory Hub** é uma plataforma distribuída de manufatura inteligente inspi
 ### Alinhamento com as Unidades Curriculares
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                             FACTORY HUB ECOSYSTEM                                │
-├────────────────────────┬────────────────────────┬────────────────────────────────┤
-│  Automação Industrial  │    Ciência de Dados    │       Computação em Nuvem      │
-│  • ESP32 (Wokwi)       │  • Metodologia CRISP-DM│  • AWS Academy (perfis IAM compativeis)       │
-│  • MQTT & Node-RED     │  • CRISP-DM + Random Forest │  • AWS IoT Core + Amazon SQS   │
-│  • Sinais OT (Sensores)│  • API Flask Predição  │  • EC2 + Docker + RDS / IaC TF │
-├────────────────────────┴────────────────────────┴────────────────────────────────┤
-│                    Integração e Entrega Contínua (DevOps)                        │
-│  • GitFlow + Conventional Commits + SemVer                                       │
-│  • Pirâmide de Testes (Unitários, Integração e E2E)                              │
-│  • GitHub Actions CI/CD + Docker Hub + Deploy Contínuo na EC2                    │
-└──────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                             FACTORY HUB ECOSYSTEM                                              │
+├────────────────────────┬─────────────────────────────┬─────────────────────────────────────────┤
+│  Automação Industrial  │    Ciência de Dados         │       Computação em Nuvem               │
+│  • ESP32 (Wokwi)       │  • Metodologia CRISP-DM     │  • AWS Academy (perfis IAM compativeis) │
+│  • MQTT & Node-RED     │  • CRISP-DM + Random Forest │  • AWS IoT Core + Amazon SQS            │
+│  • Sinais OT (Sensores)│  • API Flask Predição       │  • EC2 + Docker + RDS / IaC TF          │
+├────────────────────────┴─────────────────────────────┴─────────────────────────────────────────┤
+│                    Integração e Entrega Contínua (DevOps)                                      │
+│  • GitFlow + Conventional Commits + SemVer                                                     │
+│  • Pirâmide de Testes (Unitários, Integração e E2E)                                            │
+│  • GitHub Actions CI/CD + Docker Hub + Deploy Contínuo na EC2                                  │
+└────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---

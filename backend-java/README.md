@@ -52,3 +52,11 @@ curl -X POST http://localhost:8080/api/v1/predicoes \
 Uma resposta `ATENCAO` ou `RISCO_ANOMALIA` deve aparecer na página e, no perfil cloud (`postgres,influx`), ser persistida como alerta no RDS, visível em `GET /api/v1/alertas`. `OPERACIONAL` não cria alerta. Em execução local com adapter `mock`, a predição pode ser servida pelo mock e não grava no PostgreSQL; para exercitar a persistência, confirme que Java está no perfil cloud e conectado ao RDS.
 
 As métricas de treino confirmam que o pipeline executou, não a qualidade industrial do modelo: o dataset didático usa rótulos gerados por regras de temperatura/vibração e pode misturar telemetria sintética com dados do ESP32. Avalie com medições rotuladas de falhas reais antes de usar para decisões de manutenção.
+
+
+## Testes automatizados
+
+Execute `mvn --batch-mode verify` nesta pasta. A suite de integracao MockMvc valida payloads, respostas e rotas do backend sem exigir RDS, InfluxDB ou Flask.
+
+
+A construcao da imagem Docker tambem roda `mvn package`, incluindo os testes. A verificacao API MockMvc esta disponivel com `mvn --batch-mode verify`.

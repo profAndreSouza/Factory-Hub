@@ -43,3 +43,11 @@ docker compose up --build
 ```
 
 Para consultar diretamente `/predict` no desenvolvimento, use o endpoint interno somente em ambiente local; em execução via Compose, não há porta Flask publicada no host.
+
+
+## Testes automatizados
+
+Execute `python -m pip install -r requirements.txt pytest` e `python -m pytest -q` nesta pasta. Os testes cobrem a preparacao temporal do conjunto, treinamento e metricas, validacao das rotas Flask e retreinamento assincrono usando dados de teste, sem conectar ao InfluxDB.
+
+
+Lint do servico e testes: `python -m pip install ruff pytest`, `python -m ruff check --select E4,E7,E9,F factoryhub_ml tests` e `python -m pytest -q`.

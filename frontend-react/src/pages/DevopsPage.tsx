@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { PageHeader } from '../components/common/PageHeader';
 import { SectionTabs } from '../components/common/SectionTabs';
-import { TheoryBox } from '../components/common/TheoryBox';
 
 const TABS = [
   { id: 'teoria', label: '📚 Teoria' },
