@@ -143,8 +143,6 @@ jobs:
             context: ./ml-service
           - service: backend-java
             context: ./backend-java
-          - service: frontend-react
-            context: ./frontend-react
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3

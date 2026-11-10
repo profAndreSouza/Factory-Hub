@@ -62,7 +62,7 @@ O workflow `ci.yml` chama o workflow reutilizavel `quality-gates.yml` em pull re
 5. **Lambda SQS:** testes unitarios do Line Protocol e de processamento parcial/validacao de payload.
 6. **React:** testes unitarios, verificacao TypeScript e build de producao.
 7. **E2E:** Chromium valida navegador -> Nginx -> API Java -> Flask em Docker Compose, alem do fluxo isolado com fixtures.
-8. **Containers:** BuildKit constroi as tres imagens de producao com `push: false`; o Compose E2E tambem inicia e verifica os servicos integrados.
+8. **Containers:** BuildKit construi as duas imagens de servico para producao com `push: false`; o frontend React e verificado pelo build estatico. O Compose E2E inicia e verifica os servicos integrados.
 
 Qualquer falha bloqueia o job `publish`, que depende de `quality-gates`. Configure os jobs de lint, testes, E2E e Docker exibidos pela execucao `ci.yml` como checks obrigatorios nas regras de branch se quiser bloquear merges.
 ---
@@ -79,4 +79,4 @@ O repositório possui pipelines separados:
 
 2. `.github/workflows/terraform.yml` é iniciado manualmente e executa `init`, validação, `plan` e `apply` usando state remoto S3. O `apply` ocorre automaticamente após o `plan` dentro da mesma execução; iniciar o workflow provisiona recursos e pode gerar custos.
 
-Para publicar manualmente as imagens Flask, Java e React, execute `.github/workflows/publish-dockerhub.yml` em **Actions → Publish images to Docker Hub → Run workflow**, selecionando a branch `main`. Antes de publicar, o workflow executa os quality gates. Com todos aprovados, publica `latest` e `sha-<commit>`. A publicação não executa o deploy: copie o SHA do commit publicado e informe-o ao iniciar `deploy-ssm.yml`. Os Secrets AWS usados no deploy incluem `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN`. As Repository variables necessárias para região, bucket do state e roles IAM estão documentadas em `terraform/README.md`. Renove as credenciais AWS Academy quando expirarem.
+Para publicar, execute `.github/workflows/publish-dockerhub.yml` manualmente na branch `main`. Depois dos quality gates, o workflow publica as imagens Flask e Java no Docker Hub e envia o build estatico React ao S3, invalidando o cache CloudFront. Isso nao faz deploy do backend: inicie `deploy-ssm.yml` com o SHA completo publicado. O frontend e servido pelo CloudFront; `/api/*` segue pelo ALB ate a EC2 privada.

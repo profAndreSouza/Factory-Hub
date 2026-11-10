@@ -4,7 +4,7 @@ Para a explicação completa arquivo por arquivo, com diagrama da topologia AWS,
 
 O workflow `.github/workflows/terraform.yml` executa Terraform no GitHub Actions com credenciais temporárias do Learner Lab e state remoto no S3. O runner não depende de credenciais AWS locais. O provisionamento é iniciado manualmente em **Actions → Provisionar infraestrutura AWS → Run workflow**.
 
-O Terraform cria VPC, EC2 com Docker e SSM Agent, RDS PostgreSQL privado, SQS/DLQ, regra IoT, Lambda consumidora e rede. A EC2 não recebe conexões SSH. A configuração e o deploy SSM usam APIs HTTPS; o SSM Agent inicia conexões de saída HTTPS/443.
+A stack cria VPC, ALB publico, NAT Gateway, RDS privado, SQS/Lambda, S3 privado e CloudFront. A EC2 roda em subnet privada sem IP publico; SSM e o canal administrativo.
 
 O backend Java usa o RDS quando executado com o perfil `postgres`. O Terraform publica host, database, username e senha em parâmetros do Systems Manager sob `/factoryhub/academy/rds`; a senha é `SecureString`. Também publica as configurações do Docker Hub e InfluxDB sob `/factoryhub/academy/runtime`, com token e senha do InfluxDB como `SecureString`. O deployment via SSM busca esses parâmetros pela instance profile e reconstrói o `.env` da EC2 sem incluir segredos no comando enviado pelo GitHub. Isso permite recuperar a implantação mesmo quando o bootstrap da EC2 não terminou.
 
@@ -31,7 +31,7 @@ Em **Settings → Secrets and variables → Actions**, mantenha os seguintes **S
 | `AWS_SECRET_ACCESS_KEY` | Credencial temporária do Learner Lab |
 | `AWS_SESSION_TOKEN` | Token temporário do Learner Lab |
 | `DOCKERHUB_USERNAME` | Nome do usuário/organização usado nas imagens |
-| `DOCKERHUB_TOKEN` | Token usado para publicar imagens no Docker Hub |
+| `DOCKERHUB_TOKEN` | Token para publicar imagens backend no Docker Hub |
 
 Configure estas **Repository variables** (não são segredos):
 
@@ -42,6 +42,8 @@ Configure estas **Repository variables** (não são segredos):
 | `EC2_INSTANCE_PROFILE_NAME` | Instance profile com permissões de SSM para a EC2 |
 | `IOT_SQS_ROLE_ARN` | ARN da role confiável pelo IoT Core e autorizada a enviar para SQS |
 | `LAMBDA_EXECUTION_ROLE_ARN` | ARN da role da Lambda com permissões de logs, ENI e leitura da fila |
+| `FRONTEND_BUCKET_NAME` | Terraform output `frontend_bucket_name`, S3 destination for React build |
+| `CLOUDFRONT_DISTRIBUTION_ID` | Terraform output `cloudfront_distribution_id`, used to invalidate cache |
 
 As três variáveis IAM correspondem aos valores requeridos em `variables.tf`. O Terraform não cria nem altera roles. O perfil EC2 deve permitir SSM e `ssm:GetParameter` nos parâmetros `/factoryhub/academy/rds/*` e `/factoryhub/academy/runtime/*`, além de `kms:Decrypt` para as SecureStrings; a role IoT deve confiar em `iot.amazonaws.com` e permitir `sqs:SendMessage`; a role Lambda deve confiar em `lambda.amazonaws.com` e permitir CloudWatch Logs, operações de ENI e leitura/deleção/consulta de atributos da fila SQS. A identidade temporária usada pelo Terraform precisa poder criar os parâmetros (`ssm:PutParameter`) e passar as roles existentes (`iam:PassRole`).
 
@@ -49,8 +51,10 @@ Os Secrets AWS do Learner Lab expiram. Atualize os três antes de cada execuçã
 
 ## 3. Execute o provisionamento
 
+> **Migration note:** moving the existing EC2 to a private subnet replaces the instance. Back up InfluxDB data stored in its Docker volumes before running apply; the root volume is deleted with the old instance.
+
 1. Confirme que o bucket existe, tem bloqueio público e versionamento habilitado.
-2. Confirme que os cinco Secrets e as cinco Repository variables acima estão configurados.
+2. Confirme os cinco Secrets e as sete Repository variables acima.
 3. Inicie ou renove o Learner Lab e atualize os Secrets AWS se necessário.
 4. Acesse **Actions → Provisionar infraestrutura AWS → Run workflow**.
 5. O workflow aplica o plano criado no mesmo job.
@@ -69,14 +73,13 @@ O backend guarda state e lock no S3. O principal AWS usado pelo GitHub Actions p
 
 ## Custos e rede
 
-A configuração inclui EC2 `t3.small`, RDS PostgreSQL `db.t3.micro` Single-AZ e um endpoint de interface de CloudWatch Logs, além de SQS, Lambda e rede. Esses serviços podem gerar cobrança no Learner Lab. Não há NAT Gateway nem Load Balancer.
+A stack inclui EC2, RDS, endpoint de interface, NAT Gateway, ALB, CloudFront, S3, SQS, Lambda e volumes. NAT Gateway e ALB geram custos continuos; CloudFront e S3 variam conforme trafego. A arquitetura e adequada para explorar os servicos, mas pode exceder o saldo do Learner Lab.
 
-O output `frontend_url` aponta para o portal HTTP na porta 80. InfluxDB na porta 8086 aceita tráfego da Lambda; PostgreSQL 5432 permite conexão de saída da EC2 e entrada somente do security group da aplicação. Java 8080, Flask 5000 e SSH 22 não são expostos publicamente. Não há TLS de entrada configurado.
+O output `frontend_url` aponta para o CloudFront HTTPS. O frontend fica no S3 privado; `/api/*` segue pelo CloudFront e ALB ate o backend na EC2 privada. A porta 8080 da instancia aceita apenas o security group do ALB. InfluxDB 8086 aceita a Lambda e PostgreSQL 5432 aceita a aplicacao.
 
-## Deploy da aplicação via SSM
+## Deploy da aplicacao via SSM
 
-Após o provisionamento, aguarde a EC2 aparecer **Online** no Systems Manager. Execute o workflow `.github/workflows/terraform.yml` para criar os parâmetros de runtime usados pelo Compose; em seguida, publique as imagens aprovadas e inicie `.github/workflows/deploy-ssm.yml` em **Actions → Deploy through SSM → Run workflow**. Informe o SHA completo de 40 caracteres do commit publicado. O deploy baixa as imagens `sha-<commit>` do Docker Hub e configura o mesmo commit do repositório na EC2. Isso deixa o código e as três imagens rastreáveis e reproduzíveis. Atualize as credenciais AWS temporárias no GitHub sempre que expirarem.
-
+Apos o provisionamento, configure `FRONTEND_BUCKET_NAME` e `CLOUDFRONT_DISTRIBUTION_ID` nas Repository variables usando os outputs Terraform. A publicacao manual passa os quality gates, publica as imagens Java/Flask no Docker Hub e envia o build React ao bucket S3, depois invalida o cache CloudFront. Para atualizar o backend, execute `deploy-ssm.yml` com o SHA completo de 40 caracteres publicado. O deploy atualiza os servicos na EC2 privada por Systems Manager. Renove as credenciais AWS temporarias quando expirarem.
 ## Destruir a infraestrutura
 
 A destruição deve usar o mesmo backend e state remoto. Faça backup dos dados necessários e execute um workflow próprio de destroy, ou rode localmente com as credenciais válidas, o backend inicializado e o mesmo state. A remoção apaga o RDS sem snapshot final e os dados nos volumes da EC2; o bucket de state deve ser preservado.

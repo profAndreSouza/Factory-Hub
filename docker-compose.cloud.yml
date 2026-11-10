@@ -72,20 +72,13 @@ services:
       INFLUXDB_ORG: ${INFLUXDB_ORG:-factoryhub}
       INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-telemetry}
       INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:?INFLUXDB_TOKEN is required}
+    ports:
+      - "8080:8080"
     depends_on:
       ml-service:
         condition: service_healthy
       influx-seed:
         condition: service_completed_successfully
-
-  frontend:
-    image: ${DOCKERHUB_USERNAME:?DOCKERHUB_USERNAME is required}/factoryhub-frontend:${IMAGE_TAG:-latest}
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    depends_on:
-      backend-java:
-        condition: service_healthy
 
 volumes:
   influx-data:

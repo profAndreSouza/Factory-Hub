@@ -12,7 +12,7 @@ O AWS Academy fornece um ambiente sandbox isolado para cada estudante, com restr
 | Restrição do Sandbox | Consequência Técnica | Decisão de Arquitetura no Factory Hub |
 |---|---|---|
 | **Sem permissão `iam:CreateRole`** | O Terraform falha ao tentar criar novas IAM Roles ou Policies. | Informar perfis e roles preexistentes para EC2, IoT Rule e Lambda; verificar permissões e confiança antes do `apply`. |
-| **Orçamento fixo (\$50 a \$100)** | Serviços caros esgotam o saldo e a conta é suspensa. | **Proibido provisionar:** NAT Gateways gerenciados (~$32/mês), AWS Timestream (tarifado por query) e Load Balancers gerenciados. |
+| **Orcamento fixo (US$50 a US$100)** | NAT Gateway e ALB adicionam custos continuos e podem esgotar o saldo. | A topologia didatica atual inclui ambos para demonstrar EC2 privada e balanceamento; acompanhe o saldo e destrua a stack quando terminar. |
 | **Sessão STS Temporária (4 horas)** | As chaves de acesso expiram periodicamente. | Renovar as credenciais no Learner Lab e confirmar `aws sts get-caller-identity` antes do Terraform ou do pipeline. |
 | **Instância Única EC2** | Múltiplas instâncias geram custo desnecessário. | Uma única instância `t3.small` hospeda todos os contêineres via Docker Compose. |
 
@@ -64,9 +64,9 @@ Para garantir alta disponibilidade sem perda de mensagens durante picos de produ
 
 ## 4. Provisionamento e deploy sem SSH
 
-Os recursos executáveis estão em `terraform/`. O Terraform usa as APIs AWS por HTTPS de saída; o grupo de segurança da EC2 não cria regra de entrada para a porta 22. A tela web usa HTTP na porta 80; o InfluxDB (8086) aceita conexões apenas da security group da Lambda; RDS PostgreSQL (5432) aceita conexões apenas da EC2.
+A topologia atual entrega o frontend via CloudFront/S3 e encaminha `/api/*` pelo ALB para a EC2 em subnet privada. O NAT Gateway fornece saida HTTPS da EC2. A EC2 nao recebe SSH; InfluxDB 8086 aceita conexoes da Lambda e RDS 5432 aceita conexoes da aplicacao.
 
-O SSM Agent na EC2 mantém uma conexão de saída HTTPS/443 com Systems Manager. O deploy via GitHub Actions usa `ssm:SendCommand` com `AWS-RunShellScript`; a role/perfil preexistente da instância deve ter `AmazonSSMManagedInstanceCore` ou permissões equivalentes. Não é necessário NAT Gateway porque a EC2 está na sub-rede pública com egress HTTPS e a Lambda grava no InfluxDB pela rede privada da VPC. Um endpoint de interface de CloudWatch Logs permite logs da Lambda sem NAT.
+O SSM Agent mantem conexao de saida HTTPS/443 com Systems Manager. Como a EC2 agora fica em subnet privada, o NAT Gateway fornece saida para SSM, Docker Hub, GitHub e atualizacoes de pacotes. O frontend usa CloudFront/S3 e a API chega a EC2 pelo ALB.
 
 O AWS Academy costuma restringir criação e alteração de roles. Por isso o Terraform recebe nomes/ARNs preexistentes: `ec2_instance_profile_name`, `iot_sqs_role_arn` e `lambda_execution_role_arn`. A role do IoT precisa confiar em `iot.amazonaws.com` e permitir `sqs:SendMessage`; a role Lambda precisa confiar em `lambda.amazonaws.com` e permitir logs, ENIs de VPC e ações de consumo SQS. A simples existência da `LabRole` não comprova essas condições.
 

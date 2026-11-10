@@ -31,7 +31,7 @@ variable "dockerhub_username" {
 }
 
 variable "app_http_cidrs" {
-  description = "CIDRs autorizados a abrir o frontend HTTP (80). Restrinja à rede da escola quando possível."
+  description = "CIDRs authorized to access the public ALB over HTTP (80). Restrict to the school network where possible."
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }

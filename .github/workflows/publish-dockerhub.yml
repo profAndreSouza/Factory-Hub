@@ -47,11 +47,22 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-backend:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-backend:sha-${{ github.sha }}
 
-      - name: Publish React frontend image
-        uses: docker/build-push-action@v6
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          context: ./frontend-react
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-frontend:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/factoryhub-frontend:sha-${{ github.sha }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Build static frontend
+        working-directory: frontend-react
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish frontend to private S3 origin
+        run: aws s3 sync frontend-react/dist/ "s3://${{ vars.FRONTEND_BUCKET_NAME }}/" --delete
+
+      - name: Invalidate CloudFront frontend cache
+        run: aws cloudfront create-invalidation --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --paths '/*'

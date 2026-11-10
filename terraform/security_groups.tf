@@ -1,14 +1,14 @@
 resource "aws_security_group" "app" {
   name        = "${var.name_prefix}-app"
-  description = "Frontend HTTP and InfluxDB accessible only from Lambda; no SSH."
+  description = "Private application services; ingress only from ALB and Lambda."
   vpc_id      = aws_vpc.factoryhub.id
 
   ingress {
-    description = "Frontend web"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = var.app_http_cidrs
+    description     = "Java API from public ALB"
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
   }
 
   egress {
@@ -28,6 +28,29 @@ resource "aws_security_group" "app" {
   }
 
   tags = { Name = "${var.name_prefix}-app" }
+}
+
+resource "aws_security_group" "alb" {
+  name        = "${var.name_prefix}-alb"
+  description = "Public HTTP entry point for CloudFront API traffic."
+  vpc_id      = aws_vpc.factoryhub.id
+
+  ingress {
+    description = "HTTP from users and CloudFront distribution"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = var.app_http_cidrs
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "${var.name_prefix}-alb" }
 }
 
 resource "aws_security_group" "lambda" {

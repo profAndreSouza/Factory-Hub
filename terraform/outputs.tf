@@ -3,16 +3,30 @@ output "ec2_instance_id" {
   description = "Use este ID com aws ssm send-command."
 }
 
-output "ec2_public_ip" {
-  value       = aws_instance.app.public_ip
-  description = "IP público para abrir o frontend HTTP na porta 80."
+output "ec2_private_ip" {
+  value       = aws_instance.app.private_ip
+  description = "Private address of the application instance."
 }
 
 output "frontend_url" {
-  value       = "http://${aws_instance.app.public_ip}"
-  description = "Endereço do portal Factory Hub."
+  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
+  description = "HTTPS URL of the Factory Hub portal."
 }
 
+output "frontend_bucket_name" {
+  value       = aws_s3_bucket.frontend.id
+  description = "Private S3 bucket used to publish frontend files."
+}
+
+output "cloudfront_distribution_id" {
+  value       = aws_cloudfront_distribution.frontend.id
+  description = "Distribution ID to invalidate after publishing."
+}
+
+output "api_load_balancer_dns" {
+  value       = aws_lb.application.dns_name
+  description = "Public ALB forwarding API traffic to the private EC2."
+}
 output "rds_endpoint" {
   value       = aws_db_instance.factoryhub.address
   description = "Endpoint privado do PostgreSQL (porta 5432)."

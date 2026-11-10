@@ -31,15 +31,15 @@ Não presuma que `LabRole` atende todos esses serviços: a conta precisa permiti
 
 ---
 
-## 3. Guia de Economia: Como Manter o Custo Abaixo de \$5/mês
+## 3. Comparacao de custos entre os desenhos
 
-| Recurso | O Que Evitar (Alto Custo) | Solução Adotada no Factory Hub | Economia Estimada |
-|---|---|---|---|
-| **Rede** | Provisionar **NAT Gateway** gerenciado | EC2 em Subnet Pública com Security Group fechado | Economia de **\$32,40/mês** |
-| **Balanceador** | Application Load Balancer (ALB) | Porta 80 aberta diretamente na EC2 com Nginx | Economia de **\$18,00/mês** |
-| **Banco Temporal** | AWS Timestream (queries pagas) | Container InfluxDB na EC2 | Economia de **\$10,00/mês** |
-| **Computação** | Várias instâncias separadas | Única instância `t3.small` com Docker Compose | Economia de **\$15,00/mês** |
-
+| Componente | Perfil de menor custo | Variante didatica atual |
+|---|---|---|
+| Rede de aplicacao | EC2 publica com regras de entrada restritas | EC2 privada com NAT Gateway para egress HTTPS |
+| Entrada da API | Porta 8080 na EC2 | ALB publico encaminha para EC2 privada |
+| Frontend | Servido pela EC2 | S3 privado + CloudFront |
+| Dados e ingestao | InfluxDB em container, RDS, SQS e Lambda | Mantidos; Lambda segue em sub-redes privadas |
+| Custos | Evita NAT Gateway e ALB | NAT Gateway e ALB geram custo continuo; destruir a stack quando nao estiver em uso |
 ---
 
 ## 4. Procedimento de Encerramento e Limpeza

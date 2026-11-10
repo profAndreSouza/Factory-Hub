@@ -26,7 +26,7 @@ O **Factory Hub** é uma plataforma distribuída de manufatura inteligente inspi
 │                    Integração e Entrega Contínua (DevOps)                                      │
 │  • GitFlow + Conventional Commits + SemVer                                                     │
 │  • Pirâmide de Testes (Unitários, Integração e E2E)                                            │
-│  • GitHub Actions CI/CD + Docker Hub + Deploy Contínuo na EC2                                  │
+│  • GitHub Actions + Docker Hub + S3/CloudFront + Deploy SSM na EC2 privada                                  │
 └────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -125,7 +125,7 @@ flowchart TB
 | **Backend de Negócio** | Java 17/21 + Spring Boot 3 | Computação em Nuvem | Ler séries brutas do InfluxDB, consolidar dados e calcular Disponibilidade, Performance e Qualidade (OEE) no RDS, e intermediar previsões da IA. |
 | **Interface do Usuário** | React 18 + Vite + TailwindCSS | DevOps / Frontend | Exibe telemetria, OEE parcial no intervalo observado, consolidações e alertas de predições solicitadas pela interface. |
 | **Infraestrutura como Código** | Terraform + GitHub Actions + S3 | Computação em Nuvem | Validar, planejar e aplicar a topologia AWS por workflow manual, com credenciais em GitHub Secrets e state remoto versionado no S3. |
-| **Esteira de CI/CD** | GitHub Actions + Docker Hub + SSM | DevOps | Construir e publicar imagens versionadas, atualizar a EC2 por SSM e executar Terraform manualmente com state remoto no S3. |
+| **Esteira de CI/CD** | GitHub Actions + Docker Hub + S3/CloudFront + SSM | DevOps | Validar, publicar backend, entregar frontend estatico e atualizar a EC2 privada via SSM. |
 
 ---
 
