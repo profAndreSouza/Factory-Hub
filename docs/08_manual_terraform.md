@@ -107,6 +107,7 @@ O fluxo normal de uma alteração é **push/PR -> CI automático -> publicação
 ### Encerramento e custos
 
 NAT Gateway, ALB, EC2, RDS e outros recursos podem consumir o saldo enquanto existirem. Ao terminar a atividade, execute **Actions -> Destroy Factory Hub AWS project** conforme a seção **Destruição e state** e encerre o Learner Lab. O workflow remove também o bucket S3 do state ao final; será necessário executar novamente o bootstrap antes de provisionar outra vez.
+
 ## 1. Arquitetura AWS provisionada
 
 Terraform cria os recursos AWS. InfluxDB, Java e Flask rodam no Docker Compose da EC2 privada. O React e compilado como arquivos estaticos, publicados no S3 privado e servidos pelo CloudFront.
@@ -201,7 +202,7 @@ O workflow também exige TF_STATE_BUCKET como Repository variable e os Secrets t
 
 Execute [bootstrap-state.yml](../.github/workflows/bootstrap-state.yml) uma vez para criar o bucket do state; depois execute [terraform.yml](../.github/workflows/terraform.yml) para validar e aplicar a infraestrutura. O segundo workflow confirma que o bucket existe e tem versionamento antes de `terraform init`.
 
-O bootstrap ativa bloqueio de acesso publico, ownership controls, criptografia SSE-S3 e versionamento. O backend usa a chave `factoryhub/terraform.tfstate` e lock nativo S3. Preserve o bucket para futuras atualizacoes e destruicao da stack.
+O bootstrap ativa bloqueio de acesso publico, ownership controls, criptografia SSE-S3 e versionamento. O backend usa a chave `factoryhub/terraform.tfstate` e lock nativo S3. Preserve o bucket para futuras atualizacoes da stack; o workflow manual de destruicao o remove somente depois de concluir a limpeza.
 
 > O workflow executa apply automaticamente após gerar o plano. Uma execução pode criar recursos e gerar custos. Revise alterações e credenciais antes de iniciá-la. Se houver falha parcial, corrija a causa e rode novamente usando o mesmo state; não remova recursos do state manualmente.
 
@@ -212,7 +213,6 @@ O bootstrap ativa bloqueio de acesso publico, ownership controls, criptografia S
 - RDS e privado e aceita 5432 somente da EC2. InfluxDB aceita 8086 da Lambda; Java 8080 aceita trafego somente do ALB.
 - Trust policies e permissões das roles IAM existentes não são criadas nem corrigidas por estes arquivos.
 - Segredos podem residir no state. Controle acesso ao S3.
-- RDS e privado e aceita 5432 somente da EC2. InfluxDB aceita 8086 da Lambda; Java 8080 aceita trafego somente do ALB.
 - EC2, RDS, endpoint de interface, NAT Gateway, ALB, CloudFront, S3, volumes, SQS e Lambda podem gerar custos. NAT e ALB tem custo continuo e podem esgotar o saldo do Learner Lab.
 
 ## 7. Outputs e conferência

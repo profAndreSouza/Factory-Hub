@@ -38,6 +38,7 @@ O tempo de cada etapa pode ser adaptado à carga horária. A sequência suporta 
 
 - Não compartilhe chave privada, certificado privado, token ou `.env` com alunos nem com o Git.
 - Credenciais do Learner Lab expiram; valide a sessão antes de executar workflows AWS.
-- O bucket S3 do state é pré-requisito e deve sobreviver ao restante da infraestrutura.
+- O bucket S3 do state é pré-requisito para Terraform e sobrevive aos recursos da stack durante as operações normais; o workflow manual de destruição o apaga por último.
 - `terraform apply`, banco RDS, EC2 e demais recursos podem gerar custos. Confirme o orçamento e o processo de destruição antes da prática.
 - Terraform provisiona a infraestrutura; os workflows de publicação e deploy são etapas separadas.
+- Para encerrar o laboratório, use o workflow manual de destruição descrito em `docs/08_manual_terraform.md`. Para repetir a prática, crie novamente o bucket pelo bootstrap.

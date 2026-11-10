@@ -59,7 +59,7 @@ O docente escolhe um sintoma não destrutivo e pede que a equipe localize a últ
 | Fila acumula | Métricas SQS, event source mapping, execução/erros Lambda. |
 | Influx sem leitura nova | Logs Lambda, configuração/rede do Influx e resposta HTTP. |
 | API Java sem dado | Health do Java, consulta do adapter e disponibilidade do Influx/RDS. |
-| Frontend não carrega serviço | Network tab `/api`, proxy Nginx e logs do backend. |
+| Frontend não carrega serviço | CloudFront/S3 para os arquivos; Network tab `/api`, comportamento do CloudFront, target group do ALB e logs do backend para a API. No local/E2E, conferir o proxy Nginx. |
 | Predição indisponível | Java → Flask, health Flask, dados e modelo carregado. |
 | CI verde, Docker Hub não atualizado | Workflow manual de publish, branch e tag. |
 | Imagem está no Hub, EC2 antiga | Workflow SSM, comando remoto, Compose pull/up e tag. |

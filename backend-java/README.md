@@ -33,7 +33,7 @@ O frontend fica em `http://localhost`; a API pode ser acessada em `http://localh
 | `GET /api/v1/treinamentos/data-info` | Leituras e pares de treino disponíveis agora | Contagem atual do InfluxDB, atualizada no frontend a cada 15 segundos |
 | `GET /api/v1/health` | Estado das dependências | Java, Flask, InfluxDB e PostgreSQL consultados; AWS IoT Core aparece `UNKNOWN` / `NOT_MONITORED` |
 
-O React chama apenas `/api/...`. O Nginx encaminha as chamadas para o Java; o navegador não acessa diretamente Flask, InfluxDB ou RDS.
+O React chama apenas `/api/...`. No Compose local e no E2E, o Nginx encaminha as chamadas para o Java. Na AWS, CloudFront encaminha `/api/*` pelo ALB até o Java na EC2 privada. Em nenhum dos casos o navegador acessa diretamente Flask, InfluxDB ou RDS.
 
 Com os perfis `postgres,influx`, o Java executa a consolidação em janelas UTC fechadas de cinco minutos. A cada execução, lê telemetria `LIVE` do InfluxDB, calcula quantidade de amostras, médias/mínimos/máximos de temperatura e vibração, RPM médio, deltas dos contadores de produção/refugo e estado resumido, e grava uma linha por máquina em `telemetry_consolidations` no RDS. Um checkpoint persistido permite retomar janelas após reinício; a chave por máquina e fim da janela torna a gravação repetível. O endpoint acima alimenta a tabela de consolidados do painel. Dados anteriores à ativação do job não são reprocessados automaticamente: no primeiro ciclo é consolidada a janela fechada mais recente.
 

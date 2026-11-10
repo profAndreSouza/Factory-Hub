@@ -51,18 +51,25 @@ flowchart TB
     end
 
     subgraph DATA["Camada de armazenamento"]
-        INFLUX[(InfluxDB<br/>Dados brutos)]
         RDS[(Amazon RDS<br/>Dados consolidados)]
         MODEL[(Modelos treinados)]
     end
 
-    subgraph APP["Camada de aplicação e processamento"]
-        subgraph EC2["Amazon EC2 — Containers Docker"]
-            JAVA[Backend Java<br/>Consolidação e API]
-            PYTHON[API Python<br/>Treinamento e predição]
-            REACT[Frontend React<br/>Servidor web]
-        end
+    subgraph FRONT["Camada web"]
+        BROWSER[Navegador]
+        CF[Amazon CloudFront<br/>HTTPS e roteamento]
+        WEB[(S3 privado<br/>Build estático React)]
+        BROWSER -->|HTTPS| CF
+        CF -->|Origem padrão| WEB
     end
+
+    ALB[Application Load Balancer público<br/>Origem de API do CloudFront]
+    subgraph APP["Aplicação privada — subnet privada"]
+        JAVA[Backend Java<br/>Consolidação e API]
+        PYTHON[API Python<br/>Treinamento e predição]
+        INFLUX[(InfluxDB<br/>Container na EC2)]
+    end
+    CF -->|Comportamento /api/*| ALB --> JAVA
 
     subgraph DEVOPS["DevOps & CI/CD"]
         direction TB
@@ -70,20 +77,22 @@ flowchart TB
         GHA[GitHub Actions]
         TEST[Testes e Quality Gates]
         BUILD[Build das imagens Docker]
-        DH[Docker Hub<br/>Imagens versionadas]
+        DH[Docker Hub<br/>Imagens Java e Flask]
         DEPLOY[Deploy via SSM Run Command]
-        TF[Terraform — IaC<br/>Credenciais AWS tempor?rias]
+        TF[Terraform — IaC<br/>Credenciais AWS temporárias]
         AWS[Infraestrutura AWS]
+        STATE[(S3 versionado<br/>State Terraform)]
 
         REPO --> GHA
         GHA --> TEST
         TEST -->|Aprovado| BUILD
         BUILD -->|Push| DH
-        DH -->|Pull HTTPS| EC2
+        DH -->|Pull HTTPS| APP
         GHA -->|API HTTPS / 443| DEPLOY
-        DEPLOY -.->|SSM Run Command| EC2
+        DEPLOY -.->|SSM Run Command| APP
         TF -->|APIs AWS HTTPS / 443| AWS
-        AWS -.->|Provisiona| EC2
+        TF <-->|State remoto| STATE
+        AWS -.->|Provisiona| APP
     end
 
     ESP -->|Telemetria MQTT| IOT
@@ -98,12 +107,9 @@ flowchart TB
     JAVA -->|Solicita predição| PYTHON
     PYTHON -->|Retorna predição| JAVA
 
-    REACT -->|Requisições HTTPS| JAVA
-    JAVA -->|Consolidados e predições| REACT
-
-    DEPLOY -.->|Executado pelo GitHub Actions| EC2
-    DH -.->|EC2 baixa as imagens| EC2
-    AWS -.->|Provisionamento| EC2
+    DEPLOY -.->|Executado pelo GitHub Actions| APP
+    AWS -.->|Provisionamento| APP
+    AWS -.->|Provisionamento| FRONT
     AWS -.->|Provisionamento| INGEST
     AWS -.->|Provisionamento| RDS
 ```
@@ -206,7 +212,8 @@ Factory Hub/
 │   ├── compute.tf                 # EC2 sem SSH, bootstrap Docker e SSM
 │   ├── storage.tf                 # RDS PostgreSQL privado
 │   ├── ingestion.tf               # IoT Rule, SQS, Lambda e event source mapping
-│   ├── security_groups.tf         # Regras web, InfluxDB, Lambda e RDS
+│   ├── security_groups.tf         # Regras ALB, EC2, InfluxDB, Lambda e RDS
+│   ├── frontend.tf                # S3 privado, CloudFront OAC e roteamento da API
 │   ├── README.md                  # Backend remoto, variáveis e workflow de provisionamento
 │   └── terraform.tfvars.example   # Perfis IAM preexistentes e Docker Hub
 │
@@ -228,7 +235,7 @@ Factory Hub/
 │   ├── src/
 │   │   ├── components/            # Cards de OEE, Gráficos Recharts, Tabela de Alertas
 │   │   └── services/              # Cliente Axios para a API Java
-│   └── Dockerfile                 # Build Vite + Nginx Alpine
+│   └── Dockerfile                 # Build estático Vite e Nginx para uso local/E2E
 │
 ├── docker-compose.yml             # Orquestração local
 ├── docker-compose.cloud.yml       # Compose de produção na EC2
@@ -237,8 +244,11 @@ Factory Hub/
         ├── bootstrap-state.yml   # Cria bucket S3 versionado e mostra o nome para TF_STATE_BUCKET
         ├── terraform.yml          # Provisionamento manual com state S3
         ├── publish-dockerhub.yml  # Publicação manual das imagens no Docker Hub
-        └── deploy-ssm.yml         # Deploy manual por SSM das imagens já publicadas
+        ├── deploy-ssm.yml         # Deploy manual via SSM dos serviços na EC2 privada
+        └── destroy-aws.yml        # Destruição manual da stack e exclusão final do state
 ```
+
+Na AWS, o React é compilado como arquivos estáticos e publicado no bucket S3 privado. O CloudFront usa Origin Access Control para servir esses arquivos e encaminha `/api/*` ao ALB público; o ALB só alcança a aplicação na EC2 privada. A EC2 hospeda Java, Flask e InfluxDB em Docker Compose, sem IP público ou acesso SSH. O Nginx do frontend é usado nos ambientes local e E2E.
 
 ---
 

@@ -41,7 +41,10 @@ flowchart TB
     JAVA[Backend Java<br/>REST, OEE e integração]
     FLASK[API Flask<br/>treino e predição]
     MODEL[(Modelo Random Forest)]
-    REACT[React + Nginx]
+    BROWSER[Navegador]
+    CF[CloudFront<br/>HTTPS e roteamento]
+    S3WEB[(S3 privado<br/>React estático)]
+    ALB[ALB público<br/>origem de API do CloudFront]
     REPO[GitHub]
     GHA[GitHub Actions<br/>lint, testes, E2E e build]
     DH[Docker Hub]
@@ -58,8 +61,10 @@ flowchart TB
     FLASK <--> MODEL
     JAVA -->|predição interna| FLASK
     JAVA <--> RDS
-    REACT -->|HTTPS /api| JAVA
-    JAVA --> REACT
+    BROWSER -->|HTTPS| CF
+    CF -->|Origem padrão / OAC| S3WEB
+    CF -->|Comportamento /api/*| ALB --> JAVA
+    S3WEB -. arquivos estáticos .-> CF
 
     REPO --> GHA
     GHA -->|todos os gates aprovados| DH
@@ -128,7 +133,7 @@ Node-RED foi importante para aprender MQTT e prototipar fluxos. Nesta arquitetur
 | RDS PostgreSQL | Banco relacional gerenciado | Cadastro, alertas e consolidações consultadas pelo backend. |
 | Java | API de negócio | Controla contratos REST, integra dados, OEE e chamadas para ML. |
 | Flask | API de modelo | Prepara dados, treina Random Forest e fornece predição ao Java. |
-| React/Nginx | Interface web | Mostra os dados e encaminha `/api` à API Java. |
+| React em S3 + CloudFront | Interface web na AWS | CloudFront serve os arquivos do S3 privado e encaminha `/api/*` ao ALB e à API Java. Local/E2E usa Nginx. |
 | GitHub Actions | Robô de validação/entrega | Executa gates e, em workflows manuais, publica/deploya. |
 | Terraform | Descrição executável da infraestrutura | Provisiona recursos AWS por APIs, com state no S3. |
 

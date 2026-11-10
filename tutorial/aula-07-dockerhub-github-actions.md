@@ -2,7 +2,7 @@
 
 ## Contexto
 
-Os alunos já estudaram Docker; esta aula mostra a passagem do container local para uma imagem versionada, um registry e um servidor remoto. O tema novo é o fluxo de entrega automatizada e controlada: GitHub Actions verifica a alteração, Docker Hub armazena a imagem, e Systems Manager executa o deploy na EC2 sem abrir SSH.
+Os alunos já estudaram Docker; esta aula mostra a passagem do container local para imagens versionadas, um registry e um servidor remoto. O tema novo é o fluxo de entrega controlada: GitHub Actions verifica a alteração, publica as imagens Java/Flask no Docker Hub, compila o React para arquivos estáticos no S3 e Systems Manager executa o deploy dos serviços backend na EC2 privada sem abrir SSH.
 
 ## Objetivos
 
@@ -22,7 +22,7 @@ Os alunos já estudaram Docker; esta aula mostra a passagem do container local p
 - **Container:** processo em execução a partir de uma imagem.
 - **Docker Hub:** registry remoto que armazena imagens e tags para download.
 
-Um `docker build` local não publica nada. Um push envia uma imagem ao registry. A EC2 faz pull para baixar a imagem antes de iniciar ou atualizar containers.
+Um `docker build` local não publica nada. Um push envia uma imagem ao registry. A EC2 faz pull das imagens Java e Flask antes de iniciar ou atualizar os containers. O frontend não é enviado como container na AWS: o workflow publica o build estático no bucket S3 privado e invalida o cache CloudFront.
 
 ### Tags e rastreabilidade
 
@@ -54,10 +54,15 @@ flowchart LR
     CHANGE[Commit no GitHub] --> CI[ci.yml]
     CI --> GATES[Lint + testes + E2E + builds]
     GATES -->|todos aprovados| MANUAL[Disparo manual: publish-dockerhub.yml]
-    MANUAL --> HUB[Docker Hub<br/>latest e sha-commit]
+    MANUAL --> HUB[Docker Hub<br/>imagens Java e Flask]
+    MANUAL --> S3[Upload build React<br/>S3 privado]
+    MANUAL --> INVALIDATE[Invalidação de cache<br/>CloudFront]
     HUB --> DEPLOY[Disparo manual: deploy-ssm.yml]
     DEPLOY --> SSM[Systems Manager Run Command]
-    SSM --> EC2[EC2: Compose pull/up]
+    SSM --> EC2[EC2 privada: Compose pull/up]
+    USER[Navegador] --> CF[CloudFront]
+    CF -->|Origem estática privada| S3
+    USER -->|/api/*| CF --> ALB[ALB público] --> EC2
 ```
 
 O workflow `ci.yml` valida alterações em PRs e pushes. O workflow `publish-dockerhub.yml` é manual e seleciona a branch `main`. Ele chama os mesmos gates antes de iniciar o login e push. O workflow `deploy-ssm.yml` é disparado separadamente e pede o SHA completo publicado para instalar as imagens e a configuração correspondentes.
@@ -76,7 +81,7 @@ Isso não significa que o SSM ignora permissões: a EC2 precisa de instance prof
 4. Abrir `publish-dockerhub.yml`; localizar o `needs: quality-gates`, login, contexto Docker e tags.
 5. Copiar o SHA do commit publicado e informá-lo no workflow manual de deploy.
 6. Abrir `deploy-ssm.yml`; localizar envio de comando, parâmetros de runtime e consulta do estado SSM.
-7. Apresentar a EC2 baixando imagens sem conexão SSH de entrada.
+7. Apresentar o build React sendo servido pelo CloudFront/S3 e a EC2 privada baixando apenas as imagens Java/Flask, sem conexão SSH de entrada.
 
 ## Atividade
 

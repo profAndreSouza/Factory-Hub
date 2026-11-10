@@ -80,10 +80,12 @@ Um `AccessDenied` de `iam:PassRole` com deny explícito é uma restrição de po
 2. `variables.tf`: entradas e valores esperados.
 3. `network.tf`: VPC, subnets, gateway e rotas.
 4. `security_groups.tf`: limites de tráfego.
-5. `database.tf`: RDS e redes associadas.
+5. `storage.tf`: RDS PostgreSQL privado e rede associada.
 6. `ingestion.tf` e `lambda/`: IoT Rule, filas e função.
 7. `outputs.tf`: valores publicados após criação.
-8. `.github/workflows/terraform.yml`: credenciais, init remoto, plan e apply.
+8. `frontend.tf`: S3 privado para os arquivos React, CloudFront OAC e roteamento da API.
+9. `.github/workflows/bootstrap-state.yml` e `terraform.yml`: bucket de state, credenciais, init remoto, plan e apply.
+10. `.github/workflows/destroy-aws.yml`: limpeza manual da stack e remoção do state no final.
 
 ## Prática sem criar recursos
 

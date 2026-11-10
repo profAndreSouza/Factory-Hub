@@ -33,6 +33,8 @@ Não presuma que `LabRole` atende todos esses serviços: a conta precisa permiti
 
 ## 3. Comparacao de custos entre os desenhos
 
+A coluna de menor custo é apenas uma alternativa conceitual. A topologia provisionada pelo Terraform é a variante didática descrita na coluna da direita.
+
 | Componente | Perfil de menor custo | Variante didatica atual |
 |---|---|---|
 | Rede de aplicacao | EC2 publica com regras de entrada restritas | EC2 privada com NAT Gateway para egress HTTPS |
@@ -45,11 +47,9 @@ Não presuma que `LabRole` atende todos esses serviços: a conta precisa permiti
 ## 4. Procedimento de Encerramento e Limpeza
 
 Sempre que concluir os testes ou a apresentação do projeto:
-1. Destrua os recursos gerenciados para interromper a cobrança:
-   ```bash
-   cd terraform
-   terraform destroy -auto-approve
-   ```
-2. No painel do AWS Academy, clique no botão **"End Lab"**.
-3. Isso preserva seus créditos para as semanas finais de avaliação do semestre.
+1. Pare a simulação Wokwi e faça backup de dados que deseja manter. O workflow de destruição apaga o RDS sem snapshot final e os volumes da EC2.
+2. Atualize os três Secrets AWS se a sessão tiver expirado. Em **GitHub Actions**, execute **Destroy Factory Hub AWS project**, informe a confirmação `DESTROY FACTORY HUB` e aguarde a conclusão. O workflow remove primeiro a stack, depois a identidade IoT de dispositivo e, por último, o bucket versionado do state.
+3. Encerre o Learner Lab no painel do AWS Academy. Para executar o projeto novamente, rode o bootstrap do bucket de state e atualize a variável `TF_STATE_BUCKET`.
+
+O frontend na AWS usa S3 privado e CloudFront. O ALB público encaminha apenas a API `/api/*` para a EC2 privada, que não tem IP público nem entrada SSH. A topologia inclui NAT Gateway e ALB, que podem consumir créditos enquanto a stack existir.
 

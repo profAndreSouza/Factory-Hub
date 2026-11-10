@@ -9,7 +9,7 @@
 
 ## Explicação para a turma
 
-O frontend é uma aplicação React/TypeScript servida pelo Nginx. As funções em `frontend-react/src/services` enviam requisições para `/api`. No ambiente cloud, o Nginx encaminha esse caminho ao backend Java. Isso mantém Flask, InfluxDB e PostgreSQL fora do bundle e do tráfego direto do navegador.
+O frontend é uma aplicação React/TypeScript. No ambiente local e no E2E, o Nginx serve o build e encaminha `/api` ao backend Java. Na AWS, o build é publicado como arquivos estáticos no S3 privado e servido por CloudFront; o comportamento `/api/*` do CloudFront encaminha as chamadas ao ALB público e daí ao backend Java na EC2 privada. Em ambos os ambientes, o navegador chama somente a API Java e não acessa Flask, InfluxDB ou PostgreSQL diretamente.
 
 Tipos TypeScript registram o contrato esperado, mas o backend continua sendo a fonte de verdade. A interface precisa tratar falhas, valores ausentes, datas e diferentes origens de dados sem inventar estados de serviços localmente.
 
@@ -24,7 +24,7 @@ Tipos TypeScript registram o contrato esperado, mas o backend continua sendo a f
 
 ## Evidência de aprendizagem
 
-Entregar um diagrama de sequência com navegador, Nginx, Java e Flask para uma solicitação de predição, indicando os corpos da requisição e da resposta.
+Entregar diagramas de sequência local e cloud para uma solicitação de predição: navegador → Nginx → Java no Compose local e navegador → CloudFront → ALB → Java na AWS; em ambos, Java chama Flask internamente. Indicar os corpos da requisição e da resposta.
 
 ## Tarefa
 

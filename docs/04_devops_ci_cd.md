@@ -31,7 +31,7 @@ feature/oee-calc        ●────●                /
 feature/neural-flask            ●───────────●
 ```
 
-- **`main`:** Contém o código estável em produção na EC2. Todo merge gera uma tag SemVer imutável.
+- **`main`:** Contém o código estável. O backend publicado roda na EC2 privada e o frontend compilado é entregue por S3/CloudFront. Todo merge gera uma tag SemVer imutável.
 - **`develop`:** Linha de integração principal. Novos merges disparam suíte de testes de integração.
 - **`feature/<nome>`:** Branches temporárias para novas funcionalidades, criadas a partir de `develop`.
 - **`release/vX.Y.Z`:** Preparação e estabilização para lançamento.
@@ -81,3 +81,5 @@ A infraestrutura e a entrega da aplicacao usam workflows separados:
    ```
 
 A interface React e servida por CloudFront/S3; as requisicoes `/api/*` seguem pelo ALB ate a EC2 privada. Publicar frontend e imagens nao faz deploy do backend: essa etapa requer o workflow SSM separado.
+
+5. Para encerrar o laboratório, execute manualmente `.github/workflows/destroy-aws.yml` e digite `DESTROY FACTORY HUB`. Ele remove recursos da stack, limpa a identidade IoT externa do dispositivo e apaga o bucket versionado do state por último. Se a stack for recriada, execute novamente o bootstrap do state. O workflow de destruição não é automático nem é acionado por push.

@@ -20,31 +20,30 @@ O AWS Academy fornece um ambiente sandbox isolado para cada estudante, com restr
 
 ## 2. Topologia de Rede e Defesa em Profundidade (VPC)
 
-A rede foi concebida para garantir isolamento e baixo custo:
+A topologia didática separa o frontend acessível pela internet, a aplicação e o banco. CloudFront serve os arquivos estáticos do S3 privado; o comportamento `/api/*` chega ao ALB público e deste à EC2 privada. A EC2 e a Lambda usam subnets privadas; o NAT Gateway permite saída HTTPS para SSM, Docker Hub e serviços AWS. O RDS também fica privado.
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Amazon VPC (10.0.0.0/16)                        │
-│                                                                        │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ Sub-rede Pública (10.0.1.0/24) + Internet Gateway                │  │
-│  │                                                                  │  │
-│  │   ┌───────────────────────────────────────────────────────────┐  │  │
-│  │   │ Instância EC2 (t3.small) — Docker Host                    │  │  │
-│  │   │ Entrada: 80 (Web); 8086 apenas da Lambda; sem SSH       │  │  │
-│  │   │ • Containers: Java Backend, Flask AI, React Nginx, TSDB   │  │  │
-│  │   └─────────────────────────────┬─────────────────────────────┘  │  │
-│  └─────────────────────────────────┼────────────────────────────────┘  │
-│                                    │ Conexão Privada (Porta 5432)      │
-│  ┌─────────────────────────────────▼────────────────────────────────┐  │
-│  │ Sub-rede de Banco de Dados (10.0.2.0/24)                         │  │
-│  │                                                                  │  │
-│  │   ┌───────────────────────────────────────────────────────────┐  │  │
-│  │   │ Amazon RDS PostgreSQL (db.t3.micro - Free Tier)           │  │  │
-│  │   │ • Sem IP Público / Acesso restrito ao SG da EC2           │  │  │
-│  │   └───────────────────────────────────────────────────────────┘  │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    USER[Navegador] -->|HTTPS| CF[CloudFront]
+    CF -->|Origem padrão, OAC| S3[(S3 privado: React estático)]
+    subgraph VPC[Amazon VPC]
+        subgraph PUB[Subnets públicas]
+            ALB[ALB público<br/>Origem de API do CloudFront]
+            NAT[NAT Gateway]
+        end
+        subgraph PRIV[Subnets privadas]
+            EC2[EC2 sem IP público<br/>Java + Flask + InfluxDB]
+            LAMBDA[Lambda consumidora SQS]
+            RDS[(RDS PostgreSQL privado)]
+        end
+        ALB -->|8080| EC2
+        EC2 -->|5432| RDS
+        LAMBDA -->|8086| EC2
+        EC2 --> NAT
+        LAMBDA --> NAT
+    end
+    CF -->|/api/*| ALB
+    NAT -->|Saída HTTPS| INTERNET[SSM, Docker Hub e APIs AWS]
 ```
 
 ---
@@ -72,6 +71,6 @@ O AWS Academy costuma restringir criação e alteração de roles. Por isso o Te
 
 O bootstrap separado `bootstrap-state.yml` cria e configura o bucket versionado de state antes do primeiro `terraform init`; copie o nome exibido no resumo para a Repository variable `TF_STATE_BUCKET`. Depois, `terraform.yml` aplica a infraestrutura.
 
-## 5. Implementa??o Terraform
+## 5. Implementação Terraform
 
 A implementação executável, o backend S3 e o procedimento do workflow estão em [`../terraform/README.md`](../terraform/README.md). Use os arquivos dessa pasta como fonte de verdade; exemplos antigos com regra IoT direta para SQS ou acesso SSH não se aplicam ao fluxo atual. O Terraform provisiona IoT Rule → SQS → Lambda e usa roles preexistentes informadas nas Repository variables.
