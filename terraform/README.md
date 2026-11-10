@@ -56,7 +56,7 @@ Os Secrets AWS do Learner Lab expiram. Atualize os três antes de cada execuçã
 
 ## 3. Execute o provisionamento
 
-> **Migration note:** moving the existing EC2 to a private subnet replaces the instance. Back up InfluxDB data stored in its Docker volumes before running apply; the root volume is deleted with the old instance.
+> **Nota de migracao:** mover a EC2 existente para uma subnet privada substitui a instancia. Faca backup dos dados InfluxDB nos volumes Docker antes do apply; o volume raiz sera excluido junto da instancia antiga.
 
 1. Confirme que o bucket existe, tem bloqueio público e versionamento habilitado.
 2. Confirme os cinco Secrets e as sete Repository variables acima.
@@ -70,7 +70,7 @@ Os Secrets AWS do Learner Lab expiram. Atualize os três antes de cada execuçã
 
 O Terraform pode criar parte da infraestrutura antes de encontrar um erro. Corrija a causa, publique a alteração e execute novamente o workflow: ele consulta o state remoto no S3 e planeja as alterações restantes. Não apague o state nem remova manualmente os recursos já criados.
 
-O workflow usa Terraform 1.10.5, executa `init`, `fmt -check`, `validate`, `plan` e `apply`, e impede duas execuções concorrentes. A configuração cria parâmetros SSM para RDS e runtime sem substituir a EC2. Se o bucket não existir, o versionamento estiver desativado ou faltar configuração, a execução para antes do `plan`/`apply`.
+O workflow usa Terraform 1.10.5, executa `init`, `fmt -check`, `validate`, `plan` e `apply`, e impede execucoes concorrentes. A primeira migracao da EC2 da subnet publica para a privada substitui a instancia; faca backup dos volumes Docker do InfluxDB antes do apply. Se o bucket nao existir, o versionamento estiver desativado ou faltar configuracao, a execucao para antes do `plan`/`apply`.
 
 O backend guarda state e lock no S3. O principal AWS usado pelo GitHub Actions precisa de `s3:ListBucket`, `s3:GetBucketLocation`, `s3:GetBucketVersioning`, leitura/escrita do objeto `factoryhub/terraform.tfstate` e leitura/escrita/remoção do arquivo de lock `factoryhub/terraform.tfstate.tflock`, além das permissões AWS de provisionamento. Restrinja essas permissões ao bucket e aos objetos do Factory Hub quando o ambiente permitir.
 
@@ -82,9 +82,12 @@ A stack inclui EC2, RDS, endpoint de interface, NAT Gateway, ALB, CloudFront, S3
 
 O output `frontend_url` aponta para o CloudFront HTTPS. O frontend fica no S3 privado; `/api/*` segue pelo CloudFront e ALB ate o backend na EC2 privada. A porta 8080 da instancia aceita apenas o security group do ALB. InfluxDB 8086 aceita a Lambda e PostgreSQL 5432 aceita a aplicacao.
 
+Depois do apply, o resumo da execucao Terraform mostra `frontend_url`, `frontend_bucket_name`, `cloudfront_distribution_id`, `api_load_balancer_dns` e `ec2_instance_id`. Use os dois outputs frontend para configurar as Repository variables do publish. O principal AWS usado para publicar tambem precisa de `s3:ListBucket`, `s3:PutObject`, `s3:DeleteObject` e `cloudfront:CreateInvalidation` nos recursos do frontend.
+
 ## Deploy da aplicacao via SSM
 
 Apos o provisionamento, configure `FRONTEND_BUCKET_NAME` e `CLOUDFRONT_DISTRIBUTION_ID` nas Repository variables usando os outputs Terraform. A publicacao manual passa os quality gates, publica as imagens Java/Flask no Docker Hub e envia o build React ao bucket S3, depois invalida o cache CloudFront. Para atualizar o backend, execute `deploy-ssm.yml` com o SHA completo de 40 caracteres publicado. O deploy atualiza os servicos na EC2 privada por Systems Manager. Renove as credenciais AWS temporarias quando expirarem.
+
 ## Destruir a infraestrutura
 
-A destruição deve usar o mesmo backend e state remoto. Faça backup dos dados necessários e execute um workflow próprio de destroy, ou rode localmente com as credenciais válidas, o backend inicializado e o mesmo state. A remoção apaga o RDS sem snapshot final e os dados nos volumes da EC2; o bucket de state deve ser preservado.
+Execute manualmente **Actions -> Destroy Factory Hub AWS project** e digite `DESTROY FACTORY HUB`. O workflow usa o mesmo backend/state, destrói primeiro os recursos Terraform, limpa o Thing/certificado/policy de dispositivo informados e apaga o bucket versionado do state por último. Faça backup antes: RDS não tem snapshot final e os dados dos volumes EC2 são removidos. Roles IAM e instance profiles preexistentes permanecem; recursos IoT compartilhados também são preservados. Após sucesso, rode novamente o bootstrap do state e atualize `TF_STATE_BUCKET` antes de provisionar de novo.

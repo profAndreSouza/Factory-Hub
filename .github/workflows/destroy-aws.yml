@@ -1,0 +1,146 @@
+name: Destroy Factory Hub AWS project
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DESTROY FACTORY HUB to delete the project resources and state bucket
+        required: true
+        type: string
+      iot_thing_name:
+        description: IoT Thing created for the Factory Hub Wokwi device
+        required: true
+        default: esp32-torno-01
+        type: string
+      iot_policy_name:
+        description: IoT device policy created for the Factory Hub Wokwi device
+        required: true
+        default: factoryhub-esp32-publish
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: factoryhub-terraform
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    name: Destroy project infrastructure and external IoT device
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+      TF_VAR_ec2_instance_profile_name: ${{ vars.EC2_INSTANCE_PROFILE_NAME }}
+      TF_VAR_iot_sqs_role_arn: ${{ vars.IOT_SQS_ROLE_ARN }}
+      TF_VAR_lambda_execution_role_arn: ${{ vars.LAMBDA_EXECUTION_ROLE_ARN }}
+      TF_VAR_dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+
+    steps:
+      - name: Check explicit confirmation and required configuration
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+          IOT_THING_NAME: ${{ inputs.iot_thing_name }}
+          IOT_POLICY_NAME: ${{ inputs.iot_policy_name }}
+          EC2_INSTANCE_PROFILE_NAME: ${{ vars.EC2_INSTANCE_PROFILE_NAME }}
+          IOT_SQS_ROLE_ARN: ${{ vars.IOT_SQS_ROLE_ARN }}
+          LAMBDA_EXECUTION_ROLE_ARN: ${{ vars.LAMBDA_EXECUTION_ROLE_ARN }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ "$CONFIRMATION" != "DESTROY FACTORY HUB" ]]; then
+            echo "Type DESTROY FACTORY HUB in the confirmation field to continue."
+            exit 1
+          fi
+          if [[ "$IOT_THING_NAME" != "esp32-torno-01" || "$IOT_POLICY_NAME" != "factoryhub-esp32-publish" ]]; then
+            echo "IoT cleanup is restricted to the Factory Hub Thing and policy names."
+            exit 1
+          fi
+          if [[ "$TF_STATE_BUCKET" != factoryhub-state-* || "$TF_STATE_BUCKET" == "factoryhub-state-" ]]; then
+            echo "TF_STATE_BUCKET must be the dedicated factoryhub-state-* bucket."
+            exit 1
+          fi
+          for name in AWS_REGION TF_STATE_BUCKET EC2_INSTANCE_PROFILE_NAME IOT_SQS_ROLE_ARN LAMBDA_EXECUTION_ROLE_ARN DOCKERHUB_USERNAME AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub variable/secret: ${name}"
+              exit 1
+            fi
+          done
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+
+      - name: Verify remote state bucket
+        run: |
+          set -euo pipefail
+          aws s3api head-bucket --bucket "$TF_STATE_BUCKET" --region "$AWS_REGION"
+          versioning=$(aws s3api get-bucket-versioning \
+            --bucket "$TF_STATE_BUCKET" \
+            --query Status --output text \
+            --region "$AWS_REGION")
+          if [[ "$versioning" != "Enabled" ]]; then
+            echo "State bucket versioning is not enabled; refusing to destroy."
+            exit 1
+          fi
+
+      - name: Initialize remote state
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="key=factoryhub/terraform.tfstate" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="encrypt=true" \
+            -backend-config="use_lockfile=true"
+
+      - name: Show Terraform resources selected for deletion
+        run: |
+          {
+            echo "## Terraform resources selected for deletion"
+            echo
+            terraform state list || true
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Destroy Terraform-managed AWS resources
+        run: terraform destroy -input=false -no-color -auto-approve
+
+      - name: Remove IoT Thing, device certificates, policy, and state bucket
+        env:
+          IOT_THING_NAME: ${{ inputs.iot_thing_name }}
+          IOT_POLICY_NAME: ${{ inputs.iot_policy_name }}
+        run: bash destroy-external-resources.sh
+
+      - name: Report cleanup completion
+        env:
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+        run: |
+          {
+            echo "## Cleanup complete"
+            echo
+            echo "Terraform-managed AWS resources, IoT device resources, and all versions in bucket $TF_STATE_BUCKET were removed."
+            echo "The GitHub repository variable TF_STATE_BUCKET still contains this bucket name. Run the bootstrap workflow again before provisioning a new stack."
+            echo "Pre-existing IAM roles and instance profiles were not deleted."
+            echo "Shared IoT certificates or policies may have been preserved if they are attached to other devices."
+          } >> "$GITHUB_STEP_SUMMARY"

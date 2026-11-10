@@ -35,7 +35,7 @@ O endpoint da conta usada neste projeto é `a3046rr82t5yg4-ats.iot.us-east-1.ama
 
 ## 2. Criar e anexar uma política MQTT
 
-Em **AWS IoT Core → Security → Policies**, crie uma política que permita conectar somente com o client ID deste dispositivo e publicar somente no tópico de telemetria:
+Em **AWS IoT Core -> Security -> Policies**, crie a policy `factoryhub-esp32-publish` que permita conectar somente com o client ID deste dispositivo e publicar somente no tópico de telemetria:
 
 ```json
 {
@@ -55,7 +55,7 @@ Em **AWS IoT Core → Security → Policies**, crie uma política que permita co
 }
 ```
 
-O número da conta `722369519179` é o da conta usada no projeto. Troque-o se estiver usando outra conta. Anexe a política ao certificado em **Actions → Attach policy** e confirme que o certificado está anexado ao Thing. O Terraform deste repositório cria a IoT Rule e a fila, mas não cria certificados nem políticas para dispositivos.
+O número da conta `722369519179` é o da conta usada no projeto. Troque-o se estiver usando outra conta. Anexe a política ao certificado em **Actions → Attach policy** e confirme que o certificado está anexado ao Thing. Use esse nome de policy para que o workflow manual de destruição possa identificá-la. O Terraform deste repositório cria a IoT Rule e a fila, mas não cria certificados nem políticas para dispositivos.
 
 ## 3. Montar o circuito no Wokwi
 
