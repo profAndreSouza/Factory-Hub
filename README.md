@@ -131,7 +131,7 @@ flowchart TB
 
 ## 4. Diretrizes Críticas para AWS Academy Learner Lab
 
-> **Provisionamento:** Terraform executa em `.github/workflows/terraform.yml` quando acionado manualmente. Credenciais AWS são lidas dos GitHub Secrets; state remoto usa o bucket S3 indicado por `TF_STATE_BUCKET`. Antes de rodar, crie o bucket com bloqueio público, versionamento e criptografia, e configure as Repository variables IAM listadas em [`terraform/README.md`](terraform/README.md). O deploy da aplicação continua no workflow SSM separado.
+> **Provisionamento:** o workflow `bootstrap-state.yml` cria o bucket de state, ativa versionamento, criptografia e bloqueio publico. Copie o nome exibido no resumo para a Repository variable `TF_STATE_BUCKET`. Em seguida, `terraform.yml` provisiona a infraestrutura com as credenciais e Repository variables documentadas em [`terraform/README.md`](terraform/README.md). O deploy da aplicacao continua separado via SSM.
 
 ---
 
@@ -234,6 +234,7 @@ Factory Hub/
 ├── docker-compose.cloud.yml       # Compose de produção na EC2
 └── .github/
     └── workflows/
+        ├── bootstrap-state.yml   # Cria bucket S3 versionado e mostra o nome para TF_STATE_BUCKET
         ├── terraform.yml          # Provisionamento manual com state S3
         ├── publish-dockerhub.yml  # Publicação manual das imagens no Docker Hub
         └── deploy-ssm.yml         # Deploy manual por SSM das imagens já publicadas

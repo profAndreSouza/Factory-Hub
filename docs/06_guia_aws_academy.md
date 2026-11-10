@@ -10,7 +10,7 @@
 2. Clique no botão **"Start Lab"**. Aguarde o círculo de status ao lado do botão mudar de vermelho para **verde** com a indicação de tempo restante (geralmente 4 horas).
 3. Clique em **"AWS Details"** ao lado do botão de status.
 4. Na seção **AWS CLI**, copie as três credenciais temporárias para os GitHub Secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN`. Atualize os Secrets quando a sessão expirar.
-5. Crie pela AWS Console o bucket S3 de state indicado pela variável `TF_STATE_BUCKET`; habilite bloqueio de acesso público, versionamento e criptografia. O bucket precisa existir antes do primeiro workflow Terraform.
+5. Execute `Actions -> Bootstrap Terraform state bucket`, escolha um nome globalmente unico com prefixo `factoryhub-state-` e copie o valor do resumo para a Repository variable `TF_STATE_BUCKET`.
 6. O provisionamento ocorre pelo GitHub Actions; não é necessário configurar credenciais AWS no computador local. Não é necessário baixar chave SSH: o deploy usa Systems Manager e não abre a porta 22.
 
 ---

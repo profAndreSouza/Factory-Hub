@@ -2,11 +2,11 @@
 
 Este manual explica a configuração Terraform do Factory Hub, os arquivos do diretório, os recursos provisionados e seus fluxos. O exemplo foi preparado para o AWS Academy Learner Lab.
 
-> EC2 runs in a private subnet without a public IP or SSH. The static frontend is served by private S3 + CloudFront; `/api/*` goes through CloudFront and a public ALB to the private backend.
+> A EC2 fica em subnet privada sem IP publico ou SSH. O frontend estatico e servido pelo S3 privado + CloudFront; `/api/*` passa pelo CloudFront e por um ALB publico ate o backend privado.
 
 ## 1. Arquitetura AWS provisionada
 
-Terraform cria a infraestrutura AWS. InfluxDB, Java e Flask rodam no Docker Compose da EC2 privada. React e compilado como arquivos estaticos e publicado no S3 privado, servido pelo CloudFront.
+Terraform cria os recursos AWS. InfluxDB, Java e Flask rodam no Docker Compose da EC2 privada. O React e compilado como arquivos estaticos, publicados no S3 privado e servidos pelo CloudFront.
 
 ~~~mermaid
 flowchart TB
@@ -23,29 +23,29 @@ flowchart TB
   GH -->|Publish static build| S3WEB
   GH -->|SSM Run Command| SSM[Systems Manager]
   SSM -. Agent outbound HTTPS .-> EC2
-  GH <-->|Terraform state| STATE[(Pre-created state bucket)]
+  GHB[Bootstrap workflow] -->|Create/configure| STATE[(Versioned private state bucket)]
 ~~~
 
 ### Fluxos principais
 
 1. O ESP32 publica no tópico MQTT industria/smartn1/telemetria. O certificado, chave e IoT Policy do dispositivo são configurados fora desta stack.
 2. A Topic Rule envia a mensagem à fila SQS. O event source mapping aciona a Lambda; após falhas repetidas, a mensagem pode ir para a DLQ.
-3. CloudFront delivers React from private S3 and forwards `/api/*` to the ALB, which routes requests to the private EC2. Lambda writes telemetry to InfluxDB and sends logs through the private CloudWatch Logs endpoint.
-4. Java, Flask and InfluxDB run as containers on EC2. Java accesses RDS; ports 8080, 5000 and 8086 have no direct public ingress.
-5. EC2 accesses Docker Hub, GitHub and AWS APIs over HTTPS through NAT Gateway. SSM runs commands without opening port 22.
-6. The Terraform workflow stores state and lock in the pre-created S3 bucket, outside the managed stack.
+3. CloudFront entrega o React via HTTPS a partir do S3 privado e encaminha `/api/*` ao ALB, que direciona as requisicoes a EC2 privada. A Lambda grava telemetria no InfluxDB e envia logs pelo endpoint privado do CloudWatch Logs.
+4. Java, Flask e InfluxDB rodam como containers na EC2. Java acessa o RDS; as portas 8080, 5000 e 8086 nao recebem trafego publico direto.
+5. A EC2 acessa Docker Hub, GitHub e APIs AWS por HTTPS via NAT Gateway. O SSM executa comandos sem abrir a porta 22.
+6. Execute `bootstrap-state.yml` uma vez para criar e proteger o bucket versionado de state; copie o nome do resumo para `TF_STATE_BUCKET`.
 
 ## 2. Recursos criados e pré-requisitos externos
 
-Terraform cria VPC, subnets publicas/privadas, NAT Gateway, ALB, S3 privado, CloudFront OAC, EC2/RDS privados, SQS, IoT Rule, Lambda, parametros SSM e endpoint de CloudWatch Logs.
+Terraform cria a VPC, subnets publicas e privadas, NAT Gateway, ALB, bucket S3 privado, CloudFront OAC, EC2 e RDS privados, SQS, regra IoT, Lambda, parametros SSM e endpoint de CloudWatch Logs.
 
 São pré-requisitos, ou ficam fora do state:
 
-- Bucket S3 de state, criado antes do primeiro workflow, privado, criptografado e com versionamento.
+- Bucket S3 de state criado pelo workflow separado `bootstrap-state.yml` antes da primeira execucao Terraform.
 - Instance profile EC2, role IoT→SQS e role de execução Lambda; no Learner Lab são fornecidos como recursos IAM existentes.
 - Certificado, chave e IoT Policy do ESP32.
 - Secrets/variables do GitHub, imagens Docker Hub e os workflows de CI/publicação/deploy.
-- Custom domain and TLS certificate are not created; CloudFront uses its default domain and certificate.
+- Dominio e certificado TLS personalizados nao sao criados; CloudFront usa o dominio e certificado padrao da AWS.
 
 ## 3. Arquivos, um por um
 
@@ -96,9 +96,9 @@ O workflow também exige TF_STATE_BUCKET como Repository variable e os Secrets t
 
 ## 5. Execução do Terraform
 
-O workflow [terraform.yml](../.github/workflows/terraform.yml) é manual: **Actions → Provisionar infraestrutura AWS → Run workflow**. Ele verifica configurações e o bucket; configura credenciais; inicializa state remoto; roda fmt -check, validate, plan e aplica o plano criado no mesmo job.
+Execute [bootstrap-state.yml](../.github/workflows/bootstrap-state.yml) uma vez para criar o bucket do state; depois execute [terraform.yml](../.github/workflows/terraform.yml) para validar e aplicar a infraestrutura. O segundo workflow confirma que o bucket existe e tem versionamento antes de `terraform init`.
 
-O bucket deve existir antes da execução, com bloqueio público, criptografia e versionamento. A chave do state é factoryhub/terraform.tfstate; o lock nativo usa arquivo S3. Proteja o bucket: state pode conter dados sensíveis, mesmo quando outputs estão marcados como sensitive.
+O bootstrap ativa bloqueio de acesso publico, ownership controls, criptografia SSE-S3 e versionamento. O backend usa a chave `factoryhub/terraform.tfstate` e lock nativo S3. Preserve o bucket para futuras atualizacoes e destruicao da stack.
 
 > O workflow executa apply automaticamente após gerar o plano. Uma execução pode criar recursos e gerar custos. Revise alterações e credenciais antes de iniciá-la. Se houver falha parcial, corrija a causa e rode novamente usando o mesmo state; não remova recursos do state manualmente.
 

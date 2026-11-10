@@ -69,14 +69,15 @@ Qualquer falha bloqueia o job `publish`, que depende de `quality-gates`. Configu
 
 ## 4. Workflows do GitHub Actions
 
-O repositório possui pipelines separados:
+A infraestrutura e a entrega da aplicacao usam workflows separados:
 
-1. `.github/workflows/deploy-ssm.yml` é acionado manualmente em **Actions → Deploy through SSM → Run workflow**. Informe o SHA completo de 40 caracteres de um commit já publicado. O workflow usa a imagem `sha-<commit>` e atualiza o código de configuração para o mesmo commit. A EC2 recebe o comando via Systems Manager Run Command; o SSM Agent usa conexão de saída HTTPS/443, sem abrir a porta 22. O workflow prepara Docker/Compose se necessário, lê os parâmetros de runtime no SSM, atualiza `.env` e executa:
+1. Execute `.github/workflows/bootstrap-state.yml` uma vez antes do primeiro Terraform. Informe um bucket S3 globalmente unico com prefixo `factoryhub-state-`; o workflow protege o bucket e mostra o nome para cadastrar em `TF_STATE_BUCKET`.
+2. Execute `.github/workflows/terraform.yml` manualmente para `init`, validacao, `plan` e `apply` com state remoto S3. O `apply` ocorre automaticamente apos o `plan`; o workflow pode criar recursos e gerar custos.
+3. Para publicar, execute `.github/workflows/publish-dockerhub.yml` manualmente na branch `main`. Depois dos quality gates, publica as imagens Flask e Java no Docker Hub, envia o build React ao S3 e invalida o cache CloudFront. Antes da primeira publicacao, configure `FRONTEND_BUCKET_NAME` e `CLOUDFRONT_DISTRIBUTION_ID` usando os outputs Terraform.
+4. O workflow `.github/workflows/deploy-ssm.yml` e iniciado manualmente com o SHA completo de 40 caracteres ja publicado. Ele atualiza os servicos backend na EC2 privada via Systems Manager, sem abrir a porta 22, e executa:
    ```bash
    docker compose -f docker-compose.cloud.yml pull
    docker compose -f docker-compose.cloud.yml up -d --remove-orphans
    ```
 
-2. `.github/workflows/terraform.yml` é iniciado manualmente e executa `init`, validação, `plan` e `apply` usando state remoto S3. O `apply` ocorre automaticamente após o `plan` dentro da mesma execução; iniciar o workflow provisiona recursos e pode gerar custos.
-
-Para publicar, execute `.github/workflows/publish-dockerhub.yml` manualmente na branch `main`. Depois dos quality gates, o workflow publica as imagens Flask e Java no Docker Hub e envia o build estatico React ao S3, invalidando o cache CloudFront. Isso nao faz deploy do backend: inicie `deploy-ssm.yml` com o SHA completo publicado. O frontend e servido pelo CloudFront; `/api/*` segue pelo ALB ate a EC2 privada.
+A interface React e servida por CloudFront/S3; as requisicoes `/api/*` seguem pelo ALB ate a EC2 privada. Publicar frontend e imagens nao faz deploy do backend: essa etapa requer o workflow SSM separado.

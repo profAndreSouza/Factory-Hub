@@ -70,7 +70,7 @@ O SSM Agent mantem conexao de saida HTTPS/443 com Systems Manager. Como a EC2 ag
 
 O AWS Academy costuma restringir criação e alteração de roles. Por isso o Terraform recebe nomes/ARNs preexistentes: `ec2_instance_profile_name`, `iot_sqs_role_arn` e `lambda_execution_role_arn`. A role do IoT precisa confiar em `iot.amazonaws.com` e permitir `sqs:SendMessage`; a role Lambda precisa confiar em `lambda.amazonaws.com` e permitir logs, ENIs de VPC e ações de consumo SQS. A simples existência da `LabRole` não comprova essas condições.
 
-O provisionamento roda pelo workflow manual `.github/workflows/terraform.yml`, com as credenciais temporárias armazenadas nos GitHub Secrets e o state no S3. Crie o bucket de state fora do Terraform, com bloqueio público, versionamento e criptografia, antes do primeiro `init`. Configure também as Repository variables IAM descritas em [`../terraform/README.md`](../terraform/README.md). Renove os Secrets AWS quando a sessão do Learner Lab expirar.
+O bootstrap separado `bootstrap-state.yml` cria e configura o bucket versionado de state antes do primeiro `terraform init`; copie o nome exibido no resumo para a Repository variable `TF_STATE_BUCKET`. Depois, `terraform.yml` aplica a infraestrutura.
 
 ## 5. Implementa??o Terraform
 

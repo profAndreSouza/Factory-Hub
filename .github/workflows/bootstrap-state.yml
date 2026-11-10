@@ -1,0 +1,64 @@
+name: Bootstrap Terraform state bucket
+
+on:
+  workflow_dispatch:
+    inputs:
+      bucket_name:
+        description: Globally unique bucket name beginning with factoryhub-state-
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: factoryhub-state-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    name: Create and secure state bucket
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check required configuration
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub variable/secret: ${name}"
+              exit 1
+            fi
+          done
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Create and secure bucket
+        env:
+          TF_STATE_BUCKET: ${{ inputs.bucket_name }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: bash terraform/bootstrap-state.sh
+
+      - name: Show repository variable to configure
+        env:
+          TF_STATE_BUCKET: ${{ inputs.bucket_name }}
+        run: |
+          {
+            echo "### Next step"
+            echo 'In Settings -> Secrets and variables -> Actions -> Variables, set `TF_STATE_BUCKET` to:'
+            echo
+            printf '`%s`\n' "$TF_STATE_BUCKET"
+          } >> "$GITHUB_STEP_SUMMARY"

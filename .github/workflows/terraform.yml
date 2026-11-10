@@ -73,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           if ! aws s3api head-bucket --bucket "$TF_STATE_BUCKET"; then
-            echo "The state bucket is missing or inaccessible to these AWS credentials."
+            echo "State bucket is missing/inaccessible. Run 'Bootstrap Terraform state bucket' first, or check the bucket name and AWS permissions."
             exit 1
           fi
           versioning=$(aws s3api get-bucket-versioning \

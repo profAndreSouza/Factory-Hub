@@ -10,17 +10,22 @@ O backend Java usa o RDS quando executado com o perfil `postgres`. O Terraform p
 
 No Amazon Linux 2023, o bootstrap usa `curl-minimal` que já vem na AMI e não tenta instalar o pacote `curl`, que conflita com ele.
 
-## 1. Crie o bucket do state antes do primeiro workflow
+## 1. Crie o bucket do state com o bootstrap
 
-O bucket S3 é um pré-requisito e fica fora dos recursos gerenciados por este Terraform. Crie-o uma única vez pela AWS Console, na mesma região configurada em `AWS_REGION`:
+O bucket do state precisa existir antes do primeiro `terraform init`, pois o backend S3 e inicializado antes dos recursos Terraform. O workflow separado cria esse bucket e configura a protecao necessaria.
 
-- O nome deve ser globalmente único. `factory-hub-example` só funcionará se esse nome estiver disponível e o bucket tiver sido criado na sua conta.
-- Ative o bloqueio de acesso público.
-- Ative o versionamento.
-- Mantenha a criptografia padrão do S3 habilitada.
+1. Configure `AWS_REGION` e os Secrets AWS temporarios do Learner Lab em **Settings -> Secrets and variables -> Actions**.
+2. Escolha um nome S3 globalmente unico que comece com `factoryhub-state-`, por exemplo `factoryhub-state-factoryhub-2026`. Use letras minusculas, numeros, pontos ou hifens.
+3. Execute **Actions -> Bootstrap Terraform state bucket -> Run workflow** e informe esse nome.
+4. O workflow cria o bucket na regiao `AWS_REGION` (ou atualiza a configuracao de um bucket existente seu), ativa bloqueio de acesso publico, ownership controls, criptografia SSE-S3 e versionamento.
+5. Ao concluir, copie o valor exibido no resumo e cadastre a Repository variable `TF_STATE_BUCKET`. O workflow Terraform principal usa essa variavel para inicializar o backend remoto.
 
-O workflow verifica se o bucket existe e se o versionamento está ativo. O backend usa criptografia e o lock nativo do S3 (`use_lockfile=true`), disponível no Terraform 1.10 ou superior. Não apague o bucket: ele contém o state necessário para futuras atualizações e destruição da infraestrutura.
+O bootstrap e idempotente para o bucket da mesma conta e regiao. Se o nome pertencer a outra conta ou estiver em outra regiao, o workflow falha sem adotar o bucket. Nao apague o bucket: ele contem o state necessario para atualizacoes e destruicao da stack.
+A identidade AWS usada pelo bootstrap precisa de permissoes para criar e configurar buckets S3; o `GITHUB_TOKEN` nao e usado para alterar configuracoes do repositorio.
 
+A identidade AWS precisa de `s3:CreateBucket`, `s3:ListBucket`, `s3:GetBucketLocation`, `s3:PutBucketOwnershipControls`, `s3:PutPublicAccessBlock`, `s3:PutBucketVersioning` e `s3:PutEncryptionConfiguration` no bucket. O usuario que inicia o workflow precisa poder editar Repository variables para cadastrar `TF_STATE_BUCKET`.
+
+O backend usa a chave `factoryhub/terraform.tfstate`, criptografia e o lock nativo S3 (`use_lockfile=true`), disponivel no Terraform 1.10 ou superior.
 ## 2. Configure GitHub Actions
 
 Em **Settings → Secrets and variables → Actions**, mantenha os seguintes **Secrets**:
@@ -38,7 +43,7 @@ Configure estas **Repository variables** (não são segredos):
 | Nome | Uso |
 | --- | --- |
 | `AWS_REGION` | Região AWS, por exemplo `us-east-1` |
-| `TF_STATE_BUCKET` | Nome do bucket S3 de state criado acima |
+| `TF_STATE_BUCKET` | Nome informado no bootstrap e copiado uma vez do resumo para esta variavel |
 | `EC2_INSTANCE_PROFILE_NAME` | Instance profile com permissões de SSM para a EC2 |
 | `IOT_SQS_ROLE_ARN` | ARN da role confiável pelo IoT Core e autorizada a enviar para SQS |
 | `LAMBDA_EXECUTION_ROLE_ARN` | ARN da role da Lambda com permissões de logs, ENI e leitura da fila |
